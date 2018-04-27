@@ -3,7 +3,7 @@
 import rospy
 import actionlib
 
-from conversation_engine.msg import ConverseAction, ConverseActionGoal, ConverseActionFeedback, ConverseActionResult
+from conversation_engine.msg import ConverseAction, ConverseGoal, ConverseFeedback, ConverseResult
 
 
 class ConverseActionServer(object):
@@ -19,37 +19,19 @@ class ConverseActionServer(object):
     def execute_cb(self, goal):
         # helper variables
         r = rospy.Rate(1)
-        success = True
 
         rospy.loginfo(goal)
 
-        # # append the seeds for the fibonacci sequence
-        # self._feedback.sequence = []
-        # self._feedback.sequence.append(0)
-        # self._feedback.sequence.append(1)
-        #
-        # # publish info to the console for the user
-        # rospy.loginfo('%s: Executing, creating fibonacci sequence of order %i with seeds %i, %i' % (
-        # self._action_name, goal.order, self._feedback.sequence[0], self._feedback.sequence[1]))
-        #
-        # # start executing the action
-        # for i in range(1, goal.order):
-        #     # check that preempt has not been requested by the client
-        #     if self._as.is_preempt_requested():
-        #         rospy.loginfo('%s: Preempted' % self._action_name)
-        #         self._as.set_preempted()
-        #         success = False
-        #         break
-        #     self._feedback.sequence.append(self._feedback.sequence[i] + self._feedback.sequence[i - 1])
-        #     # publish the feedback
-        #     self._as.publish_feedback(self._feedback)
-        #     # this step is not necessary, the sequence is computed at 1 Hz for demonstration purposes
-        #     r.sleep()
-        #
-        # if success:
-        #     self._result.sequence = self._feedback.sequence
-        #     rospy.loginfo('%s: Succeeded' % self._action_name)
-        #     self._as.set_succeeded(self._result)
+        # publish info to the console for the user
+        rospy.loginfo('{an}: Executing, processing command {cmd}'.format(an=self._action_name, cmd=goal.command))
+
+        # publish the feedback
+        self._as.publish_feedback(ConverseFeedback(feedback="I'm working on {}".format(goal.command)))
+        # this step is not necessary, the sequence is computed at 1 Hz for demonstration purposes
+        r.sleep()
+
+        rospy.loginfo('%s: Succeeded' % self._action_name)
+        self._as.set_succeeded(ConverseResult(result_sentence="I finished {}".format(goal.command)))
 
 
 if __name__ == '__main__':
