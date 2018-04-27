@@ -1,5 +1,5 @@
 #goal definition
-string goal_sentence
+string command
 ---
 #result definition
 string result_sentence
