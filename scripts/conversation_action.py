@@ -14,6 +14,7 @@ class ConverseActionServer(object):
                                                 execute_cb=self.execute_cb,
                                                 auto_start=False)
         self._as.start()
+        rospy.loginfo("'{}' started".format(name))
 
     def execute_cb(self, goal):
         # helper variables
