@@ -1,0 +1,9 @@
+#goal definition
+string goal_sentence
+---
+#result definition
+string result_sentence
+---
+#feedback
+string feedback
+string[] options
