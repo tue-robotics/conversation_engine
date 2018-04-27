@@ -5,7 +5,9 @@ import rospy
 # TU/e Robotics
 from action_server import Client, TaskOutcome
 from grammar_parser import cfgparser
+import hmi
 from robocup_knowledge import knowledge_loader
+
 
 # Conversation engine
 from conversation_engine.msg import ConverseAction
@@ -19,6 +21,7 @@ class ConversationEngine(object):
         self._action_client = Client(robot_name)
         self._parser = cfgparser.CFGParser.fromstring(self._knowledge.grammar)
         self._robot_name = robot_name
+        self._hmi_client = hmi.client.Client('/noop_server')
 
         # Set up actionlib interface for clients to give a task to the robot.
         self._action_name = "/" + self._robot_name + "/conversation_engine/command"
@@ -35,11 +38,12 @@ class ConversationEngine(object):
 
     def command_goal_cb(self, goal):
         self.current_semantics = self._parser.parse(self._knowledge.grammar_target, goal.command.strip().split(" "))
-        self._action_client.send_goal(self.current_semantics)
-        r = rospy.Rate(1)
-        while not self._bla:
-            print "still waiting"
-            r.sleep()
+        if self.current_semantics:
+            self._action_client.send_task(str(self.current_semantics))
+
+        else:
+            return "don't give me shit"
+
 
     def reset(self):
         self._bla = True
