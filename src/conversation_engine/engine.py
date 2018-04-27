@@ -1,11 +1,14 @@
-#!/usr/bin/env python
-import rospy
-from action_server import Client, TaskOutcome
+# ROS
 import actionlib
-import action_server_msgs
-from conversation_engine.msg import ConverseAction
+import rospy
+
+# TU/e Robotics
+from action_server import Client, TaskOutcome
 from grammar_parser import cfgparser
 from robocup_knowledge import knowledge_loader
+
+# Conversation engine
+from conversation_engine.msg import ConverseAction
 
 
 class ConversationEngine(object):
@@ -61,9 +64,3 @@ class ConversationEngine(object):
                     elem[field] = semantics
 
         return self.current_semantics
-
-
-if __name__ == "__main__":
-    rospy.init_node("test_bla")
-    conv_engine = ConversationEngine("amigo")
-    rospy.spin()

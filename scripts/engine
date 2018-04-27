@@ -1,0 +1,13 @@
+#! /usr/bin/env python
+
+# ROS
+import rospy
+
+# Conversation engine
+from conversation_engine import ConversationEngine
+
+
+if __name__ == "__main__":
+    rospy.init_node("test_bla")
+    conv_engine = ConversationEngine("amigo")
+    rospy.spin()
