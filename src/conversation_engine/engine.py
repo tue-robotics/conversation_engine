@@ -2,6 +2,7 @@
 import actionlib
 import random
 import rospy
+import json
 import yaml
 
 # TU/e Robotics
@@ -42,26 +43,37 @@ class ConversationEngine(object):
         print feedback.current_subtask
 
     def command_goal_cb(self, goal):
+        print "Received new goal: {}".format(goal)
         self.current_semantics = self._parser.parse(self._knowledge.grammar_target, goal.command.strip().split(" "))
+        
         if self.current_semantics:
 
             while True:
                 task_outcome = self._action_client.send_task(str(self.current_semantics))
+                print task_outcome
                 if task_outcome.result != TaskOutcome.RESULT_MISSING_INFORMATION:
+                    break
+                if not task_outcome.messages or task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION and not task_outcome:
                     break
 
                 target = self._get_grammar_target(task_outcome.missing_field)
                 try:
                     result = self._hmi_client.query(description="".join(task_outcome.messages),
                                                     grammar=self._knowledge.grammar, target=target, timeout=100)
-                    sem = yaml.load(result.semantics)
-                    self.process_hmi_result(str(sem), task_outcome.missing_field)
-                    print self.current_semantics
-                except:
+                    print "I received result: {}".format(result)
+                    sem_str = json.dumps(result.semantics)
+                    sem_dict = yaml.load(sem_str)
+                    print "parsed: {}".format(sem_dict)
+                    self.process_hmi_result(sem_dict, task_outcome.missing_field)
+                    print "New semantics: {}".format(self.current_semantics)
+                except hmi.TimeoutException:
                     pass
 
             if not task_outcome.succeeded:
-                self._action_server.set_aborted(ConverseResult(result_sentence="".join(task_outcome.messages)))
+                if task_outcome.messages:
+                    self._action_server.set_aborted(ConverseResult(result_sentence="".join(task_outcome.messages)))
+                else:
+                    self._action_server.set_aborted(ConverseResult(result_sentence="I don't feel so good"))
             else:
                 self._action_server.set_succeeded(ConverseResult(result_sentence="".join(task_outcome.messages)))
         else:
