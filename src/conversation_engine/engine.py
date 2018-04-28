@@ -50,6 +50,7 @@ class ConversationState(object):
     IDLE = "IDLE"
     WAIT_FOR_USER = "WAIT_FOR_USER"  # Waiting for info from user
     WAIT_FOR_ROBOT = "WAIT_FOR_ROBOT"  # Waiting for the action server to reply with success/aborted (missing info or fail)
+    ABORTING = "ABORTING"
 
     def __init__(self):
         rospy.loginfo("New ConversationState")
@@ -88,6 +89,10 @@ class ConversationState(object):
         self._state = ConversationState.WAIT_FOR_ROBOT
         self._target = None
         self._missing_field = None
+
+    def aborting(self):
+        rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.ABORTING))
+        self._state = ConversationState.ABORTING
 
     def initialize_semantics(self, semantics):
         self._current_semantics = semantics
@@ -151,11 +156,13 @@ class ConversationEngine(object):
         elif self._state.state == ConversationState.WAIT_FOR_ROBOT:
             # User must wait for robot/action server to reply, cannot handle user input now
             self._handle_user_while_waiting_for_robot(text)
+        elif self._state.state == ConversationState.ABORTING:
+            self._handle_user_while_aborting(text)
 
     def _stop(self):
         rospy.loginfo("_stop(): Cancelling goals, resetting state")
-        self._state = ConversationState()
-        self._action_client.cancel_all()
+        self._state.aborting()
+        self._action_client.cancel_all_async()
 
         self._robot_to_user_pub.publish(random.choice(["Stop! Hammer time", "Oops, sorry"]))
 
@@ -225,6 +232,15 @@ class ConversationEngine(object):
 
         if self._latest_feedback:
             sentence += describe_current_subtask(self._latest_feedback.current_subtask)
+
+        self._robot_to_user_pub.publish(sentence)
+
+    def _handle_user_while_aborting(self, text):
+        sentence = random.choice(["Yes, I'll stop ",
+                                  "I'm quitting "])
+
+        if self._latest_feedback:
+            sentence += describe_current_subtask(self._latest_feedback.current_subtask, prefix=False)
 
         self._robot_to_user_pub.publish(sentence)
 
