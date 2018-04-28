@@ -25,7 +25,7 @@ class ConversationEngine(object):
         self._hmi_client = hmi.client.Client('conversation_engine_hmi')
 
         # Set up actionlib interface for clients to give a task to the robot.
-        self._action_name = "/" + self._robot_name + "/conversation_engine/command"
+        self._action_name = "/" + self._robot_name + "/conversation_engine"
         self._action_server = actionlib.SimpleActionServer(self._action_name, ConverseAction,
                                                            execute_cb=self.command_goal_cb, auto_start=False)
 
