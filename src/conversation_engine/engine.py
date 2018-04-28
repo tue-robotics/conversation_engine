@@ -216,7 +216,9 @@ class ConversationEngine(object):
         sentence = random.choice(["I'm busy, give me a sec.",
                                   "Hold on, "])
 
-        sentence += describe_current_subtask(self._latest_feedback.current_subtask)
+        if self._latest_feedback:
+            sentence += describe_current_subtask(self._latest_feedback.current_subtask)
+
         self._robot_to_user_pub.publish(sentence)
 
     def _done_cb(self, task_outcome):
