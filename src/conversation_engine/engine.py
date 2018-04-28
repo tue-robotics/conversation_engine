@@ -167,7 +167,9 @@ class ConversationEngine(object):
         self._state.aborting()
         self._action_client.cancel_all_async()
 
-        self._robot_to_user_pub.publish(random.choice(["Stop! Hammer time", "Oops, sorry"]))
+        self._robot_to_user_pub.publish(random.choice(["Stop! Hammer time",
+                                                       "Oops, sorry",
+                                                       "OK, I'll stop"]))
 
     def _handle_command(self, text):
         """Parse text into goal semantics, send to action_server"""
