@@ -8,11 +8,37 @@ import yaml
 # TU/e Robotics
 from action_server import Client, TaskOutcome
 from grammar_parser import cfgparser
-import hmi
+from std_msgs.msg import String
 from robocup_knowledge import knowledge_loader
 
 # Conversation engine
 from conversation_engine.msg import ConverseAction, ConverseResult, ConverseFeedback
+
+def sanitize_text(txt):
+    stripped = "".join(c for c in txt if c not in """!.,:'?`~@#$%^&*()+=-></*-+""")
+    lowered = stripped.lower()
+
+    mapping = { "dining table": "dining_table",
+                "display case": "display_case",
+                "storage shelf": "storage_shelf",
+                "couch table": "couch_table",
+                "tv table": "tv_table",
+                "kitchen table": "kitchen_table",
+                "kitchen cabinet": "kitchen_cabinet",
+                "side table": "side_table",
+                "living room": "living_room",
+                "dining room": "dining_room"}
+
+    for key, value in mapping:
+        lowered = lowered.replace(key, value)
+
+    return lowered
+
+
+class ConversationState(object):
+    IDLE = 0
+    WAIT_FOR_USER = 1  # Waiting for info from user
+    WAIT_FOR_ROBOT = 2  # Waiting for the action server to reply with success/aborted (missing info or fail)
 
 
 class ConversationEngine(object):
@@ -20,25 +46,78 @@ class ConversationEngine(object):
         self.current_semantics = {}
         self._knowledge = knowledge_loader.load_knowledge('challenge_gpsr')
 
+        self._state = ConversationState.IDLE
+
         self._action_client = Client(robot_name)
-        self._action_client._action_client.feedback_cb = self.feedback_cb
+
         self._parser = cfgparser.CFGParser.fromstring(self._knowledge.grammar)
         self._robot_name = robot_name
-        self._hmi_client = hmi.client.Client("/" + self._robot_name + '/conversation_engine_hmi')
 
-        # Set up actionlib interface for clients to give a task to the robot.
-        self._action_name = "/" + self._robot_name + "/conversation_engine"
-        self._action_server = actionlib.SimpleActionServer(self._action_name, ConverseAction,
-                                                           execute_cb=self.command_goal_cb, auto_start=False)
+        self._user_to_robot_sub = rospy.Subscriber("chatter/user_to_robot", String, self._handle_user_to_robot)
+        self._robot_to_user_pub = rospy.Publisher("chatter/robot_to_user", String)
 
-        self._action_server.register_preempt_callback(cb=self.reset)
+        rospy.logdebug("Started conversation engine")
 
-        self._action_server.start()
+    def _handle_user_to_robot(self, msg):
+        rospy.loginfo("_handle_user_to_robot({})".format(msg))
 
-        rospy.logdebug("Started conversation engine on {}".format(self._action_name))
+        text = sanitize_text(msg.data)
 
-    def feedback_cb(self, feedback):
-        print feedback.current_subtask
+        # TODO: Check for special commands (like stop, start etc)
+
+        if self._state == ConversationState.IDLE:
+            # parse command and send_goal
+            self._handle_command(text)
+        elif self._state == ConversationState.WAIT_FOR_USER:
+            pass
+            # Update semantics and send updated goal
+        elif self._state == ConversationState.WAIT_FOR_ROBOT:
+            # User must wait for robot/action server to reply, cannot handle user input now
+            pass
+
+    def _handle_command(self, text):
+        """Parse text into goal semantics, send to action_server"""
+        # TODO parse and send_goal
+        self._state = ConversationState.WAIT_FOR_ROBOT
+
+    def _handle_addition_info(self, text):
+        """Parse text into additional info according to grammar & target received from action_server result"""
+        # TODO parse, update semantics, send_goal
+        self._state = ConversationState.WAIT_FOR_ROBOT
+
+    def _done_cb(self, task_outcome):
+        rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
+
+        assert isinstance(task_outcome, TaskOutcome)
+
+        if task_outcome.succeeded:
+            rospy.loginfo("Action succeeded")
+            self._robot_to_user_pub.publish(" ".join(task_outcome.messages))
+            self._state = ConversationState.IDLE
+
+        elif task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION:
+            rospy.loginfo("Action needs more info")
+            self._robot_to_user_pub.publish("".join(task_outcome.messages))
+            self._state = ConversationState.WAIT_FOR_USER
+
+        elif task_outcome.result == TaskOutcome.RESULT_TASK_EXECUTION_FAILED:
+            rospy.loginfo("Action execution failed")
+            self._robot_to_user_pub.publish("".join(task_outcome.messages))
+            self._state = ConversationState.IDLE
+
+        elif task_outcome.result == TaskOutcome.RESULT_UNKNOWN:
+            rospy.loginfo("Action result: unknown")
+            self._robot_to_user_pub.publish("".join(task_outcome.messages))
+            self._state = ConversationState.IDLE
+
+        else:
+            rospy.loginfo("Action result: other")
+            self._robot_to_user_pub.publish("".join(task_outcome.messages))
+            self._state = ConversationState.IDLE
+
+
+    def _feedback_cb(self, feedback):
+        self._robot_to_user_pub.publish(feedback.current_subtask)  # TODO make natural language
 
     def command_goal_cb(self, goal):
         print "Received new goal: {}".format(goal)
