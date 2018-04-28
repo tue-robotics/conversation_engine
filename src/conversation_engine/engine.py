@@ -37,7 +37,24 @@ def sanitize_text(txt):
 
 def describe_current_subtask(subtask, prefix=True):
     """Make a 'natural' language description of subtask name"""
-    description = subtask + "ing"
+    to_verb = { "AnswerQuestion": "answering a question",
+                "ArmGoal": "moving my arm",
+                "DemoPresentation": "giving a demo",
+                "Find": "finding",
+                "Follow": "following",
+                "Guide": "guiding",
+                "GripperGoal": "moving my gripper",
+                "HandOver": "handing something over",
+                "Inspect": "inspecting",
+                "LookAt": "looking",
+                "NavigateTo": "navigating",
+                "PickUp": "picking up",
+                "Place": "placing",
+                "ResetWM": "resetting my world model",
+                "Say": "speaking",
+                "SendPicture": "sending a picture",
+                "TurnTowardSound": "turning towards a sound"}
+    description = to_verb.get(subtask, subtask + "ing")
 
     if prefix:
         description = random.choice(["I'm busy", "I'm"]) + " " + description
@@ -234,7 +251,7 @@ class ConversationEngine(object):
                                   "Hold on, "])
 
         if self._latest_feedback:
-            sentence += describe_current_subtask(self._latest_feedback.current_subtask)
+            sentence += " " + describe_current_subtask(self._latest_feedback.current_subtask)
 
         self._robot_to_user_pub.publish(sentence)
 
