@@ -51,10 +51,6 @@ class ConversationEngine(object):
 
                 target = self._get_grammar_target(task_outcome.missing_field)
                 try:
-                    command = 'living_room'
-
-                    bla = self._parser.parse(target, command.strip().split(" "))
-                    print bla
                     result = self._hmi_client.query(description="".join(task_outcome.messages),
                                                     grammar=self._knowledge.grammar, target=target, timeout=100)
                     self.process_hmi_result(str(result.semantics), task_outcome.missing_field)
