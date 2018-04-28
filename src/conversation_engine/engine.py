@@ -36,9 +36,43 @@ def sanitize_text(txt):
 
 
 class ConversationState(object):
-    IDLE = 0
-    WAIT_FOR_USER = 1  # Waiting for info from user
-    WAIT_FOR_ROBOT = 2  # Waiting for the action server to reply with success/aborted (missing info or fail)
+    """Encapsulate all conversation state.
+    This makes it impossible to transition to a next state without setting the correct fields"""
+    IDLE = "IDLE"
+    WAIT_FOR_USER = "WAIT_FOR_USER"  # Waiting for info from user
+    WAIT_FOR_ROBOT = "WAIT_FOR_ROBOT"  # Waiting for the action server to reply with success/aborted (missing info or fail)
+
+    def __init__(self):
+        rospy.loginfo("New ConversationState")
+        self._state = ConversationState.IDLE
+        self._target = None
+        self._missing_field = None
+
+    @property
+    def state(self):
+        return self._state
+
+    @property
+    def target(self):
+        return self._target
+
+    @property
+    def missing_field(self):
+        return self._missing_field
+
+    def wait_for_user(self, target, missing_field):
+        rospy.loginfo("ConversationState: {old} -> {new}. Target='{t}', missing_field='{mf}'"
+                      .format(old=self._state, new=ConversationState.WAIT_FOR_USER,
+                              t=target, mf=missing_field))
+        self._state = ConversationState.WAIT_FOR_USER
+        self._target = target
+        self._missing_field = missing_field
+
+    def wait_for_robot(self):
+        rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.WAIT_FOR_ROBOT))
+        self._state = ConversationState.WAIT_FOR_ROBOT
+        self._target = None
+        self._missing_field = None
 
 
 class ConversationEngine(object):
@@ -46,9 +80,7 @@ class ConversationEngine(object):
         self.current_semantics = {}
         self._knowledge = knowledge_loader.load_knowledge('challenge_gpsr')
 
-        self._state = ConversationState.IDLE
-        self._target = None
-        self._missing_field = None
+        self._state = ConversationState()
 
         self._action_client = Client(robot_name)
 
@@ -67,13 +99,13 @@ class ConversationEngine(object):
 
         # TODO: Check for special commands (like stop, start etc)
 
-        if self._state == ConversationState.IDLE:
+        if self._state.state == ConversationState.IDLE:
             # parse command and send_goal
             self._handle_command(text)
-        elif self._state == ConversationState.WAIT_FOR_USER:
+        elif self._state.state == ConversationState.WAIT_FOR_USER:
             # Update semantics and send updated goal
             self._handle_additional_info(text)
-        elif self._state == ConversationState.WAIT_FOR_ROBOT:
+        elif self._state.state == ConversationState.WAIT_FOR_ROBOT:
             # User must wait for robot/action server to reply, cannot handle user input now
             self._handle_user_while_waiting_for_robot(text)
 
@@ -90,7 +122,7 @@ class ConversationEngine(object):
                                             done_cb=self._done_cb)
         rospy.loginfo("Task sent: {}".format(self.current_semantics))
 
-        self._state = ConversationState.WAIT_FOR_ROBOT
+        self._state.wait_for_robot()
 
     def _handle_additional_info(self, text):
         """Parse text into additional info according to grammar & target received from action_server result"""
@@ -104,14 +136,13 @@ class ConversationEngine(object):
         sem_dict = yaml.load(sem_str)
         rospy.logdebug("parsed: {}".format(sem_dict))
 
-        self.process_hmi_result(sem_dict, self._missing_field)
+        self.process_hmi_result(sem_dict, self._state.missing_field)
         rospy.loginfo("Updated semantics: {}".format(self.current_semantics))
 
-        self._state = ConversationState.WAIT_FOR_ROBOT
+        self._state.wait_for_robot()
 
     def _handle_user_while_waiting_for_robot(self, text):
-        self._robot_to_user_pub.publish(random.choice["I'm busy, give me a sec",
-                                                      "Hold on, I'm working"])
+        self._robot_to_user_pub.publish(random.choice(["I'm busy, give me a sec", "Hold on, I'm working"]))
 
     def _done_cb(self, task_outcome):
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
@@ -120,32 +151,30 @@ class ConversationEngine(object):
         if task_outcome.succeeded:
             rospy.loginfo("Action succeeded")
             self._robot_to_user_pub.publish(" ".join(task_outcome.messages))
-            self._state = ConversationState.IDLE
+
+            self._state = ConversationState()  # Reset the state
 
         elif task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION:
             rospy.loginfo("Action needs more info from user")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
 
-            self._target = self._get_grammar_target(task_outcome.missing_field)
-            self._missing_field = task_outcome.missing_field
-            rospy.loginfo("Missing info: '{}' (target: '{}')".format(self._missing_field, self._target))
-
-            self._state = ConversationState.WAIT_FOR_USER
+            self._state.wait_for_user(target=self._get_grammar_target(task_outcome.missing_field),
+                                      missing_field=task_outcome.missing_field)
 
         elif task_outcome.result == TaskOutcome.RESULT_TASK_EXECUTION_FAILED:
             rospy.loginfo("Action execution failed")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
-            self._state = ConversationState.IDLE
+            self._state = ConversationState()  # Reset the state
 
         elif task_outcome.result == TaskOutcome.RESULT_UNKNOWN:
             rospy.loginfo("Action result: unknown")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
-            self._state = ConversationState.IDLE
+            self._state = ConversationState()  # Reset the state
 
         else:
             rospy.loginfo("Action result: other")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
-            self._state = ConversationState.IDLE
+            self._state = ConversationState()  # Reset the state
 
     def _feedback_cb(self, feedback):
         self._robot_to_user_pub.publish(feedback.current_subtask)  # TODO make natural language
