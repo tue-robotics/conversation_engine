@@ -1,5 +1,6 @@
 # ROS
 import actionlib
+import random
 import rospy
 
 # TU/e Robotics
@@ -8,20 +9,20 @@ from grammar_parser import cfgparser
 import hmi
 from robocup_knowledge import knowledge_loader
 
-
 # Conversation engine
-from conversation_engine.msg import ConverseAction
+from conversation_engine.msg import ConverseAction, ConverseResult, ConverseFeedback
 
 
 class ConversationEngine(object):
     def __init__(self, robot_name):
         self.current_semantics = {}
-        self._path_of_missing_information = None
         self._knowledge = knowledge_loader.load_knowledge('challenge_gpsr')
+
         self._action_client = Client(robot_name)
+        self._action_client._action_client.feedback_cb = self.feedback_cb
         self._parser = cfgparser.CFGParser.fromstring(self._knowledge.grammar)
         self._robot_name = robot_name
-        self._hmi_client = hmi.client.Client('/noop_server')
+        self._hmi_client = hmi.client.Client('conversation_engine_hmi')
 
         # Set up actionlib interface for clients to give a task to the robot.
         self._action_name = "/" + self._robot_name + "/conversation_engine/command"
@@ -36,35 +37,72 @@ class ConversationEngine(object):
 
         rospy.logdebug("Started conversation engine on {}".format(self._action_name))
 
+    def feedback_cb(self, feedback):
+        print feedback.current_subtask
+
     def command_goal_cb(self, goal):
         self.current_semantics = self._parser.parse(self._knowledge.grammar_target, goal.command.strip().split(" "))
         if self.current_semantics:
-            self._action_client.send_task(str(self.current_semantics))
 
+            while True:
+                task_outcome = self._action_client.send_task(str(self.current_semantics))
+                if task_outcome.result != TaskOutcome.RESULT_MISSING_INFORMATION:
+                    break
+
+                target = self._get_grammar_target(task_outcome.missing_field)
+                try:
+                    command = 'living_room'
+
+                    bla = self._parser.parse(target, command.strip().split(" "))
+                    print bla
+                    result = self._hmi_client.query(description="".join(task_outcome.messages),
+                                                    grammar=self._knowledge.grammar, target=target, timeout=100)
+                    self.process_hmi_result(str(result.semantics), task_outcome.missing_field)
+                    print self.current_semantics
+                except:
+                    pass
+
+            if not task_outcome.succeeded:
+                self._action_server.set_aborted(ConverseResult(result_sentence="".join(task_outcome.messages)))
+            else:
+                self._action_server.set_succeeded(ConverseResult(result_sentence="".join(task_outcome.messages)))
         else:
-            return "don't give me shit"
-
+            result_sentence = random.choice(["You're not making sense.",
+                                             "Don't give me this shit.",
+                                             "Tell me something useful.",
+                                             "This is useless input. Thanks, but no thanks.",
+                                             "Make sense to me, fool!",
+                                             "Talk to the gripper, the PC is too good for you.",
+                                             "Something went terribly wrong.",
+                                             "Would you mother in law understand?",
+                                             "Try 'sudo {}'".format(goal.command)])
+            self._action_server.set_aborted(ConverseResult(result_sentence=result_sentence))
 
     def reset(self):
         self._bla = True
         self._action_client.cancel_all()
         self.current_semantics = {}
 
-    def process(self, semantics):
+    def process_hmi_result(self, semantics, missing_field_path):
         # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
         # the missing information path
 
-        if self._path_of_missing_information:
-            # fill semantics in existing semantics
-            path_list = self._path_of_missing_information.split('.')
-            action_index = int(path_list[0].strip('actions[').rstrip(']'))
-            fields = path_list[1:]
+        # fill semantics in existing semantics
+        path_list = missing_field_path.split('.')
+        action_index = int(path_list[0].strip('actions[').rstrip(']'))
+        fields = path_list[1:]
 
-            elem = self.current_semantics['actions'][action_index]
-            for field in fields:
-                try:
-                    elem = elem[field]
-                except KeyError:
-                    elem[field] = semantics
+        elem = self.current_semantics['actions'][action_index]
+        for field in fields:
+            try:
+                elem = elem[field]
+            except KeyError:
+                elem[field] = semantics
+        return
 
-        return self.current_semantics
+    def _get_grammar_target(self, missing_field_path):
+        deepest_field_name = missing_field_path.split('.')[-1]
+        if 'location' in deepest_field_name:
+            return 'ROOM_OR_LOCATION'
+        else:
+            return "T"
