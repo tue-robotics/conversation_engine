@@ -203,56 +203,6 @@ class ConversationEngine(object):
         rospy.loginfo(feedback.current_subtask)
         self._robot_to_user_pub.publish(feedback.current_subtask)  # TODO make natural language
 
-    def command_goal_cb(self, goal):
-        print "Received new goal: {}".format(goal)
-        self.current_semantics = self._parser.parse(self._knowledge.grammar_target, goal.command.strip().split(" "))
-        print "Example: {}".format(self._parser.get_random_sentence(self._knowledge.grammar_target))
-        
-        if self.current_semantics:
-
-            while True:
-                task_outcome = self._action_client.send_task(str(self.current_semantics))
-                print task_outcome
-                if task_outcome.result != TaskOutcome.RESULT_MISSING_INFORMATION:
-                    break
-                if not task_outcome.messages or task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION and not task_outcome:
-                    break
-
-                target = self._get_grammar_target(task_outcome.missing_field)
-                try:
-                    result = self._hmi_client.query(description="".join(task_outcome.messages),
-                                                    grammar=self._knowledge.grammar, target=target, timeout=100)
-                    print "I received result: {}".format(result)
-                    sem_str = json.dumps(result.semantics)
-                    sem_dict = yaml.load(sem_str)
-                    print "parsed: {}".format(sem_dict)
-                    self.process_hmi_result(sem_dict, task_outcome.missing_field)
-                    print "New semantics: {}".format(self.current_semantics)
-                except hmi.TimeoutException:
-                    pass
-
-            if not task_outcome.succeeded:
-                if task_outcome.messages:
-                    self._action_server.set_aborted(ConverseResult(result_sentence="".join(task_outcome.messages)))
-                else:
-                    self._action_server.set_aborted(ConverseResult(result_sentence="I don't feel so good"))
-            else:
-                self._action_server.set_succeeded(ConverseResult(result_sentence="".join(task_outcome.messages)))
-        else:
-            if 'sandwich' in goal.command:
-                result_sentence = "Try 'sudo {}'".format(goal.command)
-            else:
-                result_sentence = random.choice(["You're not making sense.",
-                                                 "Don't give me this shit.",
-                                                 "Tell me something useful.",
-                                                 "This is useless input. Thanks, but no thanks.",
-                                                 "Make sense to me, fool!",
-                                                 "Talk to the gripper, the PC is too good for you.",
-                                                 "Something went terribly wrong.",
-                                                 "Would your mother in law understand?",
-                                                 "Try 'sudo {}'".format(goal.command)])
-            self._action_server.set_aborted(ConverseResult(result_sentence=result_sentence))
-
     def reset(self):
         self._action_client.cancel_all()
         self.current_semantics = {}
