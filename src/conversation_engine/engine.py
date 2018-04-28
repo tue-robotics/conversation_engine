@@ -97,7 +97,10 @@ class ConversationEngine(object):
 
         text = sanitize_text(msg.data)
 
-        # TODO: Check for special commands (like stop, start etc)
+        stop_words = ["stop", "cancel", "quit", "reset", "exit"]
+        if any([word for word in stop_words if word in text]):
+            self._stop()
+            return
 
         if self._state.state == ConversationState.IDLE:
             # parse command and send_goal
@@ -108,6 +111,14 @@ class ConversationEngine(object):
         elif self._state.state == ConversationState.WAIT_FOR_ROBOT:
             # User must wait for robot/action server to reply, cannot handle user input now
             self._handle_user_while_waiting_for_robot(text)
+
+    def _stop(self):
+        rospy.loginfo("_stop(): Cancelling goals, resetting state")
+        self._state = ConversationState()
+        self._action_client.cancel_all()
+        self.current_semantics = {}
+
+        self._robot_to_user_pub.publish(random.choice(["Stop! Hammer time", "Oops, sorry"]))
 
     def _handle_command(self, text):
         """Parse text into goal semantics, send to action_server"""
@@ -202,10 +213,6 @@ class ConversationEngine(object):
     def _feedback_cb(self, feedback):
         rospy.loginfo(feedback.current_subtask)
         self._robot_to_user_pub.publish(feedback.current_subtask)  # TODO make natural language
-
-    def reset(self):
-        self._action_client.cancel_all()
-        self.current_semantics = {}
 
     def process_hmi_result(self, semantics, missing_field_path):
         # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
