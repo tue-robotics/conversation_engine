@@ -87,8 +87,8 @@ class ConversationEngine(object):
         self._parser = cfgparser.CFGParser.fromstring(self._knowledge.grammar)
         self._robot_name = robot_name
 
-        self._user_to_robot_sub = rospy.Subscriber("chatter/user_to_robot", String, self._handle_user_to_robot)
-        self._robot_to_user_pub = rospy.Publisher("chatter/robot_to_user", String, queue_size=10)
+        self._user_to_robot_sub = rospy.Subscriber("conversation/user_to_robot", String, self._handle_user_to_robot)
+        self._robot_to_user_pub = rospy.Publisher("conversation/robot_to_user", String, queue_size=10)
 
         rospy.logdebug("Started conversation engine")
 
