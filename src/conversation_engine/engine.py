@@ -103,7 +103,7 @@ class ConversationState(object):
 
 class ConversationEngine(object):
     def __init__(self, robot_name):
-        self._knowledge = knowledge_loader.load_knowledge('challenge_gpsr')
+        self._knowledge = knowledge_loader.load_knowledge('challenge_open')
 
         self._state = ConversationState()
 
