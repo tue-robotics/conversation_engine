@@ -82,6 +82,7 @@ class ConversationState(object):
 
     def initialize_semantics(self, semantics):
         self._current_semantics = semantics
+        rospy.loginfo("Initialized semantics: {}".format(self._current_semantics))
 
     def update_semantics(self, semantics, missing_field_path):
         # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
@@ -98,6 +99,9 @@ class ConversationState(object):
                 elem = elem[field]
             except KeyError:
                 elem[field] = semantics
+
+
+        rospy.loginfo("Updated semantics: {}".format(self._current_semantics))
         return
 
 
@@ -154,9 +158,6 @@ class ConversationEngine(object):
         result_sentence = None
 
         if self._state.current_semantics:
-
-            rospy.logdebug("Example: '{}'".format(self._parser.get_random_sentence(self._knowledge.grammar_target)))
-
             self._action_client.send_async_task(str(self._state.current_semantics),
                                                 done_cb=self._done_cb,
                                                 feedback_cb=self._feedback_cb)
@@ -165,7 +166,7 @@ class ConversationEngine(object):
             self._state.wait_for_robot()
         else:
             if 'sandwich' in text:
-                result_sentence = "Try 'sudo {}'".format(text)
+                result_sentence = "Try 'sudo {}'.".format(text)
             else:
                 result_sentence = random.choice(["You're not making sense.",
                                                  "Don't give me this shit.",
@@ -175,12 +176,17 @@ class ConversationEngine(object):
                                                  "Talk to the gripper, the PC is too good for you.",
                                                  "Something went terribly wrong.",
                                                  "Would your mother in law understand?",
-                                                 "Try 'sudo {}'".format(text)])
+                                                 "Try 'sudo {}'.".format(text)])
 
             self._state = ConversationState()
 
-        if result_sentence:
-            self._robot_to_user_pub.publish(result_sentence)
+            example = self._parser.get_random_sentence(self._knowledge.grammar_target)
+            rospy.logdebug("Example: '{}'".format(example))
+
+            result_sentence += " An example command is: '{}'. ".format(example)
+
+            if result_sentence:
+                self._robot_to_user_pub.publish(result_sentence)
 
     def _handle_additional_info(self, text):
         """Parse text into additional info according to grammar & target received from action_server result"""
