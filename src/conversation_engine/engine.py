@@ -119,7 +119,8 @@ class ConversationEngine(object):
         rospy.logdebug("Example: '{}'".format(self._parser.get_random_sentence(self._knowledge.grammar_target)))
 
         self._action_client.send_async_task(str(self.current_semantics),
-                                            done_cb=self._done_cb)
+                                            done_cb=self._done_cb,
+                                            feedback_cb=self._feedback_cb)
         rospy.loginfo("Task sent: {}".format(self.current_semantics))
 
         self._state.wait_for_robot()
@@ -177,6 +178,7 @@ class ConversationEngine(object):
             self._state = ConversationState()  # Reset the state
 
     def _feedback_cb(self, feedback):
+        rospy.loginfo(feedback.current_subtask)
         self._robot_to_user_pub.publish(feedback.current_subtask)  # TODO make natural language
 
     def command_goal_cb(self, goal):
