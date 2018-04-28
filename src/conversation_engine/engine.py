@@ -35,10 +35,14 @@ def sanitize_text(txt):
     return lowered
 
 
-def describe_current_subtask(subtask):
+def describe_current_subtask(subtask, prefix=True):
     """Make a 'natural' language description of subtask name"""
-    prefix = random.choice(["I'm busy", "I'm"])
-    return prefix + " " + subtask + "ing"
+    description = subtask + "ing"
+
+    if prefix:
+        description = random.choice(["I'm busy", "I'm"]) + description
+
+    return description
 
 class ConversationState(object):
     """Encapsulate all conversation state.
