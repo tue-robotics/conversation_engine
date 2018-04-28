@@ -172,6 +172,9 @@ class ConversationEngine(object):
 
             self._state.wait_for_robot()
         else:
+            rospy.loginfo("Could not parse '{}'".format(text))
+            self._log_invalid_command(text)
+
             if 'sandwich' in text:
                 result_sentence = "Try 'sudo {}'.".format(text)
             else:
@@ -265,3 +268,7 @@ class ConversationEngine(object):
             return 'ROOM_OR_LOCATION'
         else:
             return "T"
+
+    def _log_invalid_command(self, text):
+        with open("invalid_commands.txt", "a") as dump:
+            dump.writelines([text+"\n"])
