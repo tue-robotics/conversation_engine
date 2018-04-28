@@ -15,7 +15,7 @@ from robocup_knowledge import knowledge_loader
 from conversation_engine.msg import ConverseAction, ConverseResult, ConverseFeedback
 
 def sanitize_text(txt):
-    stripped = "".join(c for c in txt if c not in """!.,:'?`~@#$%^&*()+=-></*-+""")
+    stripped = "".join(c for c in txt if c not in """!.,:'?`~@#$%^&*()+=-/\></*-+""")
     lowered = stripped.lower()
 
     mapping = { "dining table": "dining_table",
@@ -48,6 +48,8 @@ class ConversationState(object):
         self._target = None
         self._missing_field = None
 
+        self._current_semantics = {}
+
     @property
     def state(self):
         return self._state
@@ -59,6 +61,10 @@ class ConversationState(object):
     @property
     def missing_field(self):
         return self._missing_field
+
+    @property
+    def current_semantics(self):
+        return self._current_semantics
 
     def wait_for_user(self, target, missing_field):
         rospy.loginfo("ConversationState: {old} -> {new}. Target='{t}', missing_field='{mf}'"
@@ -74,10 +80,29 @@ class ConversationState(object):
         self._target = None
         self._missing_field = None
 
+    def initialize_semantics(self, semantics):
+        self._current_semantics = semantics
+
+    def update_semantics(self, semantics, missing_field_path):
+        # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
+        # the missing information path
+
+        # fill semantics in existing semantics
+        path_list = missing_field_path.split('.')
+        action_index = int(path_list[0].strip('actions[').rstrip(']'))
+        fields = path_list[1:]
+
+        elem = self._current_semantics['actions'][action_index]
+        for field in fields:
+            try:
+                elem = elem[field]
+            except KeyError:
+                elem[field] = semantics
+        return
+
 
 class ConversationEngine(object):
     def __init__(self, robot_name):
-        self.current_semantics = {}
         self._knowledge = knowledge_loader.load_knowledge('challenge_gpsr')
 
         self._state = ConversationState()
@@ -116,7 +141,6 @@ class ConversationEngine(object):
         rospy.loginfo("_stop(): Cancelling goals, resetting state")
         self._state = ConversationState()
         self._action_client.cancel_all()
-        self.current_semantics = {}
 
         self._robot_to_user_pub.publish(random.choice(["Stop! Hammer time", "Oops, sorry"]))
 
@@ -125,18 +149,18 @@ class ConversationEngine(object):
         rospy.loginfo("_handle_command('{}')".format(text))
 
         words = text.strip().split(" ")
-        self.current_semantics = self._parser.parse(self._knowledge.grammar_target, words)
+        self._state.initialize_semantics(self._parser.parse(self._knowledge.grammar_target, words))
 
         result_sentence = None
 
-        if self.current_semantics:
+        if self._state.current_semantics:
 
             rospy.logdebug("Example: '{}'".format(self._parser.get_random_sentence(self._knowledge.grammar_target)))
 
-            self._action_client.send_async_task(str(self.current_semantics),
+            self._action_client.send_async_task(str(self._state.current_semantics),
                                                 done_cb=self._done_cb,
                                                 feedback_cb=self._feedback_cb)
-            rospy.loginfo("Task sent: {}".format(self.current_semantics))
+            rospy.loginfo("Task sent: {}".format(self._state.current_semantics))
 
             self._state.wait_for_robot()
         else:
@@ -170,8 +194,8 @@ class ConversationEngine(object):
         sem_dict = yaml.load(sem_str)
         rospy.logdebug("parsed: {}".format(sem_dict))
 
-        self.process_hmi_result(sem_dict, self._state.missing_field)
-        rospy.loginfo("Updated semantics: {}".format(self.current_semantics))
+        self._state.update_semantics(sem_dict, self._state.missing_field)
+        rospy.loginfo("Updated semantics: {}".format(self._state.current_semantics))
 
         self._state.wait_for_robot()
 
@@ -213,23 +237,6 @@ class ConversationEngine(object):
     def _feedback_cb(self, feedback):
         rospy.loginfo(feedback.current_subtask)
         self._robot_to_user_pub.publish(feedback.current_subtask)  # TODO make natural language
-
-    def process_hmi_result(self, semantics, missing_field_path):
-        # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
-        # the missing information path
-
-        # fill semantics in existing semantics
-        path_list = missing_field_path.split('.')
-        action_index = int(path_list[0].strip('actions[').rstrip(']'))
-        fields = path_list[1:]
-
-        elem = self.current_semantics['actions'][action_index]
-        for field in fields:
-            try:
-                elem = elem[field]
-            except KeyError:
-                elem[field] = semantics
-        return
 
     def _get_grammar_target(self, missing_field_path):
         deepest_field_name = missing_field_path.split('.')[-1]
