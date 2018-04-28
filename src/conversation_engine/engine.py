@@ -43,7 +43,7 @@ class ConversationEngine(object):
     def command_goal_cb(self, goal):
         print "Received new goal: {}".format(goal)
         self.current_semantics = self._parser.parse(self._knowledge.grammar_target, goal.command.strip().split(" "))
-        self._parser.get_random_sentence(self._knowledge.grammar_target)
+        print "Example: {}".format(self._parser.get_random_sentence(self._knowledge.grammar_target))
         
         if self.current_semantics:
 
