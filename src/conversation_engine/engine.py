@@ -35,8 +35,6 @@ class ConversationEngine(object):
 
         self._action_server.start()
 
-        self._bla = False
-
         rospy.logdebug("Started conversation engine on {}".format(self._action_name))
 
     def feedback_cb(self, feedback):
@@ -52,6 +50,7 @@ class ConversationEngine(object):
                 task_outcome = self._action_client.send_task(str(self.current_semantics))
                 print task_outcome
                 if task_outcome.result != TaskOutcome.RESULT_MISSING_INFORMATION:
+
                     break
                 if not task_outcome.messages or task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION and not task_outcome:
                     break
@@ -89,7 +88,6 @@ class ConversationEngine(object):
             self._action_server.set_aborted(ConverseResult(result_sentence=result_sentence))
 
     def reset(self):
-        self._bla = True
         self._action_client.cancel_all()
         self.current_semantics = {}
 
