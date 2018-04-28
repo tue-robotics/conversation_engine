@@ -1,5 +1,8 @@
 #! /usr/bin/env python
 
+# System
+import argparse
+
 # ROS
 import rospy
 
@@ -8,6 +11,15 @@ from conversation_engine import ConversationEngine
 
 
 if __name__ == "__main__":
-    rospy.init_node("test_bla")
-    conv_engine = ConversationEngine("amigo")
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--robot', type=str, default="amigo")
+    args = parser.parse_args()
+
+    rospy.init_node("conversation_engine")
+
+    rospy.loginfo("Starting conversation engine with robot {}".format(args.robot))
+    conv_engine = ConversationEngine(args.robot)
+
+    rospy.loginfo("Conversation engine started")
     rospy.spin()
