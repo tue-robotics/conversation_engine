@@ -22,7 +22,7 @@ class ConversationEngine(object):
         self._action_client._action_client.feedback_cb = self.feedback_cb
         self._parser = cfgparser.CFGParser.fromstring(self._knowledge.grammar)
         self._robot_name = robot_name
-        self._hmi_client = hmi.client.Client('conversation_engine_hmi')
+        self._hmi_client = hmi.client.Client("/" + self._robot_name + '/conversation_engine_hmi')
 
         # Set up actionlib interface for clients to give a task to the robot.
         self._action_name = "/" + self._robot_name + "/conversation_engine"
