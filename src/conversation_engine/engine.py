@@ -225,7 +225,7 @@ class ConversationEngine(object):
                                                  "Something went terribly wrong.",
                                                  "Would your mother in law understand?",
                                                  "Try 'sudo {}'.".format(text)])
-
+            self._robot_to_user_pub.publish(result_sentence)
             self._state = ConversationState()
             self._say_ready_for_command()
 
@@ -241,10 +241,16 @@ class ConversationEngine(object):
         sem_dict = yaml.load(sem_str)
         rospy.logdebug("parsed: {}".format(sem_dict))
 
-        self._state.update_semantics(sem_dict, self._state.missing_field)
-        rospy.loginfo("Updated semantics: {}".format(self._state.current_semantics))
-
-        self._state.wait_for_robot()
+        try:
+            self._state.update_semantics(sem_dict, self._state.missing_field)
+            rospy.loginfo("Updated semantics: {}".format(self._state.current_semantics))
+            self._robot_to_user_pub.publish(random.choice(["OK, I can work with that",
+                                                           "Allright, thanks!"]))
+            self._state.wait_for_robot()
+        except Exception as e:
+            rospy.logerr("Could not update semantics: {}".format(e))
+            self._robot_to_user_pub.publish("Something went terribly wrong, can we try a new command?")
+            self._stop()
 
     def _handle_user_while_waiting_for_robot(self, text):
         sentence = random.choice(["I'm busy, give me a sec.",
