@@ -116,14 +116,36 @@ class ConversationEngine(object):
         words = text.strip().split(" ")
         self.current_semantics = self._parser.parse(self._knowledge.grammar_target, words)
 
-        rospy.logdebug("Example: '{}'".format(self._parser.get_random_sentence(self._knowledge.grammar_target)))
+        result_sentence = None
 
-        self._action_client.send_async_task(str(self.current_semantics),
-                                            done_cb=self._done_cb,
-                                            feedback_cb=self._feedback_cb)
-        rospy.loginfo("Task sent: {}".format(self.current_semantics))
+        if self.current_semantics:
 
-        self._state.wait_for_robot()
+            rospy.logdebug("Example: '{}'".format(self._parser.get_random_sentence(self._knowledge.grammar_target)))
+
+            self._action_client.send_async_task(str(self.current_semantics),
+                                                done_cb=self._done_cb,
+                                                feedback_cb=self._feedback_cb)
+            rospy.loginfo("Task sent: {}".format(self.current_semantics))
+
+            self._state.wait_for_robot()
+        else:
+            if 'sandwich' in text:
+                result_sentence = "Try 'sudo {}'".format(text)
+            else:
+                result_sentence = random.choice(["You're not making sense.",
+                                                 "Don't give me this shit.",
+                                                 "Tell me something useful.",
+                                                 "This is useless input. Thanks, but no thanks.",
+                                                 "Make sense to me, fool!",
+                                                 "Talk to the gripper, the PC is too good for you.",
+                                                 "Something went terribly wrong.",
+                                                 "Would your mother in law understand?",
+                                                 "Try 'sudo {}'".format(text)])
+
+            self._state = ConversationState()
+
+        if result_sentence:
+            self._robot_to_user_pub.publish(result_sentence)
 
     def _handle_additional_info(self, text):
         """Parse text into additional info according to grammar & target received from action_server result"""
