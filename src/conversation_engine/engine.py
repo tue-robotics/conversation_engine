@@ -215,15 +215,18 @@ class ConversationEngine(object):
             else:
                 self._action_server.set_succeeded(ConverseResult(result_sentence="".join(task_outcome.messages)))
         else:
-            result_sentence = random.choice(["You're not making sense.",
-                                             "Don't give me this shit.",
-                                             "Tell me something useful.",
-                                             "This is useless input. Thanks, but no thanks.",
-                                             "Make sense to me, fool!",
-                                             "Talk to the gripper, the PC is too good for you.",
-                                             "Something went terribly wrong.",
-                                             "Would your mother in law understand?",
-                                             "Try 'sudo {}'".format(goal.command)])
+            if 'sandwich' in goal.command:
+                result_sentence = "Try 'sudo {}'".format(goal.command)
+            else:
+                result_sentence = random.choice(["You're not making sense.",
+                                                 "Don't give me this shit.",
+                                                 "Tell me something useful.",
+                                                 "This is useless input. Thanks, but no thanks.",
+                                                 "Make sense to me, fool!",
+                                                 "Talk to the gripper, the PC is too good for you.",
+                                                 "Something went terribly wrong.",
+                                                 "Would your mother in law understand?",
+                                                 "Try 'sudo {}'".format(goal.command)])
             self._action_server.set_aborted(ConverseResult(result_sentence=result_sentence))
 
     def reset(self):
