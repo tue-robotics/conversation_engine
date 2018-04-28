@@ -2,6 +2,7 @@
 import actionlib
 import random
 import rospy
+import yaml
 
 # TU/e Robotics
 from action_server import Client, TaskOutcome
@@ -53,7 +54,8 @@ class ConversationEngine(object):
                 try:
                     result = self._hmi_client.query(description="".join(task_outcome.messages),
                                                     grammar=self._knowledge.grammar, target=target, timeout=100)
-                    self.process_hmi_result(str(result.semantics), task_outcome.missing_field)
+                    sem = yaml.load(result.semantics)
+                    self.process_hmi_result(str(sem), task_outcome.missing_field)
                     print self.current_semantics
                 except:
                     pass
