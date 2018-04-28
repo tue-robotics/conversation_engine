@@ -29,7 +29,7 @@ def sanitize_text(txt):
                 "living room": "living_room",
                 "dining room": "dining_room"}
 
-    for key, value in mapping:
+    for key, value in mapping.iteritems():
         lowered = lowered.replace(key, value)
 
     return lowered
@@ -47,6 +47,8 @@ class ConversationEngine(object):
         self._knowledge = knowledge_loader.load_knowledge('challenge_gpsr')
 
         self._state = ConversationState.IDLE
+        self._target = None
+        self._missing_field = None
 
         self._action_client = Client(robot_name)
 
@@ -54,12 +56,12 @@ class ConversationEngine(object):
         self._robot_name = robot_name
 
         self._user_to_robot_sub = rospy.Subscriber("chatter/user_to_robot", String, self._handle_user_to_robot)
-        self._robot_to_user_pub = rospy.Publisher("chatter/robot_to_user", String)
+        self._robot_to_user_pub = rospy.Publisher("chatter/robot_to_user", String, queue_size=10)
 
         rospy.logdebug("Started conversation engine")
 
     def _handle_user_to_robot(self, msg):
-        rospy.loginfo("_handle_user_to_robot({})".format(msg))
+        rospy.loginfo("_handle_user_to_robot('{}')".format(msg))
 
         text = sanitize_text(msg.data)
 
@@ -69,25 +71,50 @@ class ConversationEngine(object):
             # parse command and send_goal
             self._handle_command(text)
         elif self._state == ConversationState.WAIT_FOR_USER:
-            pass
             # Update semantics and send updated goal
+            self._handle_additional_info(text)
         elif self._state == ConversationState.WAIT_FOR_ROBOT:
             # User must wait for robot/action server to reply, cannot handle user input now
-            pass
+            self._handle_user_while_waiting_for_robot(text)
 
     def _handle_command(self, text):
         """Parse text into goal semantics, send to action_server"""
-        # TODO parse and send_goal
+        rospy.loginfo("_handle_command('{}')".format(text))
+
+        words = text.strip().split(" ")
+        self.current_semantics = self._parser.parse(self._knowledge.grammar_target, words)
+
+        rospy.logdebug("Example: '{}'".format(self._parser.get_random_sentence(self._knowledge.grammar_target)))
+
+        self._action_client.send_async_task(str(self.current_semantics),
+                                            done_cb=self._done_cb)
+        rospy.loginfo("Task sent: {}".format(self.current_semantics))
+
         self._state = ConversationState.WAIT_FOR_ROBOT
 
-    def _handle_addition_info(self, text):
+    def _handle_additional_info(self, text):
         """Parse text into additional info according to grammar & target received from action_server result"""
-        # TODO parse, update semantics, send_goal
+        rospy.loginfo("_handle_additional_info('{}')".format(text))
+
+        words = text.strip().split(" ")
+        additional_semantics = self._parser.parse(self._knowledge.grammar_target, words)
+
+        rospy.loginfo("additional_semantics: {}".format(additional_semantics))
+        sem_str = json.dumps(additional_semantics)
+        sem_dict = yaml.load(sem_str)
+        rospy.logdebug("parsed: {}".format(sem_dict))
+
+        self.process_hmi_result(sem_dict, self._missing_field)
+        rospy.loginfo("Updated semantics: {}".format(self.current_semantics))
+
         self._state = ConversationState.WAIT_FOR_ROBOT
+
+    def _handle_user_while_waiting_for_robot(self, text):
+        self._robot_to_user_pub.publish(random.choice["I'm busy, give me a sec",
+                                                      "Hold on, I'm working"])
 
     def _done_cb(self, task_outcome):
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
-
         assert isinstance(task_outcome, TaskOutcome)
 
         if task_outcome.succeeded:
@@ -96,8 +123,13 @@ class ConversationEngine(object):
             self._state = ConversationState.IDLE
 
         elif task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION:
-            rospy.loginfo("Action needs more info")
+            rospy.loginfo("Action needs more info from user")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
+
+            self._target = self._get_grammar_target(task_outcome.missing_field)
+            self._missing_field = task_outcome.missing_field
+            rospy.loginfo("Missing info: '{}' (target: '{}')".format(self._missing_field, self._target))
+
             self._state = ConversationState.WAIT_FOR_USER
 
         elif task_outcome.result == TaskOutcome.RESULT_TASK_EXECUTION_FAILED:
@@ -115,7 +147,6 @@ class ConversationEngine(object):
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
             self._state = ConversationState.IDLE
 
-
     def _feedback_cb(self, feedback):
         self._robot_to_user_pub.publish(feedback.current_subtask)  # TODO make natural language
 
@@ -130,7 +161,6 @@ class ConversationEngine(object):
                 task_outcome = self._action_client.send_task(str(self.current_semantics))
                 print task_outcome
                 if task_outcome.result != TaskOutcome.RESULT_MISSING_INFORMATION:
-
                     break
                 if not task_outcome.messages or task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION and not task_outcome:
                     break
