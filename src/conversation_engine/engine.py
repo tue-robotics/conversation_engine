@@ -83,7 +83,7 @@ class ConversationEngine(object):
                                              "Make sense to me, fool!",
                                              "Talk to the gripper, the PC is too good for you.",
                                              "Something went terribly wrong.",
-                                             "Would you mother in law understand?",
+                                             "Would your mother in law understand?",
                                              "Try 'sudo {}'".format(goal.command)])
             self._action_server.set_aborted(ConverseResult(result_sentence=result_sentence))
 
