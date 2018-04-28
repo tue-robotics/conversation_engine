@@ -35,6 +35,11 @@ def sanitize_text(txt):
     return lowered
 
 
+def describe_current_subtask(subtask):
+    """Make a 'natural' language description of subtask name"""
+    prefix = random.choice(["I'm busy", "I'm"])
+    return prefix + " " + subtask + "ing"
+
 class ConversationState(object):
     """Encapsulate all conversation state.
     This makes it impossible to transition to a next state without setting the correct fields"""
@@ -118,6 +123,8 @@ class ConversationEngine(object):
 
         self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self._handle_user_to_robot)
         self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)
+
+        self._latest_feedback = None
 
         rospy.logdebug("Started conversation engine")
 
@@ -206,7 +213,11 @@ class ConversationEngine(object):
         self._state.wait_for_robot()
 
     def _handle_user_while_waiting_for_robot(self, text):
-        self._robot_to_user_pub.publish(random.choice(["I'm busy, give me a sec", "Hold on, I'm working"]))
+        sentence = random.choice(["I'm busy, give me a sec.",
+                                  "Hold on, "])
+
+        sentence += describe_current_subtask(self._latest_feedback.current_subtask)
+        self._robot_to_user_pub.publish(sentence)
 
     def _done_cb(self, task_outcome):
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
@@ -241,8 +252,10 @@ class ConversationEngine(object):
             self._state = ConversationState()  # Reset the state
 
     def _feedback_cb(self, feedback):
+        self._latest_feedback = feedback
+
         rospy.loginfo(feedback.current_subtask)
-        self._robot_to_user_pub.publish(feedback.current_subtask)  # TODO make natural language
+        self._robot_to_user_pub.publish(describe_current_subtask(feedback.current_subtask))
 
     def _get_grammar_target(self, missing_field_path):
         deepest_field_name = missing_field_path.split('.')[-1]
