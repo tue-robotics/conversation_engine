@@ -40,9 +40,10 @@ def describe_current_subtask(subtask, prefix=True):
     description = subtask + "ing"
 
     if prefix:
-        description = random.choice(["I'm busy", "I'm"]) + description
+        description = random.choice(["I'm busy", "I'm"]) + " " + description
 
     return description
+
 
 class ConversationState(object):
     """Encapsulate all conversation state.
@@ -147,7 +148,11 @@ class ConversationEngine(object):
 
         stop_words = ["stop", "cancel", "quit", "reset", "exit"]
         if any([word for word in stop_words if word in text]):
-            self._stop()
+            if self._state.state == ConversationState.IDLE:
+                self._robot_to_user_pub.publish(random.choice(["I'm not busy", "I'm not doing anything"]))
+                self._say_ready_for_command()
+            else:
+                self._stop()
             return
 
         if self._state.state == ConversationState.IDLE:
@@ -205,14 +210,7 @@ class ConversationEngine(object):
                                                  "Try 'sudo {}'.".format(text)])
 
             self._state = ConversationState()
-
-            example = self._parser.get_random_sentence(self._knowledge.grammar_target)
-            rospy.logdebug("Example: '{}'".format(example))
-
-            result_sentence += " An example command is: '{}'. ".format(example)
-
-            if result_sentence:
-                self._robot_to_user_pub.publish(result_sentence)
+            self._say_ready_for_command()
 
     def _handle_additional_info(self, text):
         """Parse text into additional info according to grammar & target received from action_server result"""
@@ -249,6 +247,19 @@ class ConversationEngine(object):
 
         self._robot_to_user_pub.publish(sentence)
 
+    def _say_ready_for_command(self):
+        sentence = random.choice(["I'm ready for a command.",
+                                  "Your wish is my command.",
+                                  "Do you have an assignment for me?",
+                                  "Do you have a command for me?",
+                                  "Please tell me what to do."
+                                  "Anything to do boss?"])
+        example = self._parser.get_random_sentence(self._knowledge.grammar_target)
+
+        sentence += " An example command is: '{}'. ".format(example)
+
+        self._robot_to_user_pub.publish(sentence)
+
     def _done_cb(self, task_outcome):
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
         assert isinstance(task_outcome, TaskOutcome)
@@ -258,6 +269,7 @@ class ConversationEngine(object):
             self._robot_to_user_pub.publish(" ".join(task_outcome.messages))
 
             self._state = ConversationState()  # Reset the state
+            self._say_ready_for_command()
 
         elif task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION:
             rospy.loginfo("Action needs more info from user")
@@ -270,16 +282,19 @@ class ConversationEngine(object):
             rospy.loginfo("Action execution failed")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
             self._state = ConversationState()  # Reset the state
+            self._say_ready_for_command()
 
         elif task_outcome.result == TaskOutcome.RESULT_UNKNOWN:
             rospy.loginfo("Action result: unknown")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
             self._state = ConversationState()  # Reset the state
+            self._say_ready_for_command()
 
         else:
             rospy.loginfo("Action result: other")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
             self._state = ConversationState()  # Reset the state
+            self._say_ready_for_command()
 
     def _feedback_cb(self, feedback):
         self._latest_feedback = feedback
