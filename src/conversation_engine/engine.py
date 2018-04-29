@@ -297,8 +297,8 @@ class ConversationEngine(object):
 
         if additional_semantics:
             try:
+                rospy.loginfo("Additional_semantics: {}".format(additional_semantics))
                 self._state.update_semantics(sem_dict, self._state.missing_field)
-                rospy.loginfo("Updated semantics: {}".format(self._state.current_semantics))
                 self._robot_to_user_pub.publish(random.choice(["OK, I can work with that",
                                                                "Allright, thanks!"]))
 
