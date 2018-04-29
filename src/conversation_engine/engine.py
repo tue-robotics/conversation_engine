@@ -289,16 +289,23 @@ class ConversationEngine(object):
         sem_dict = yaml.load(sem_str)
         rospy.logdebug("parsed: {}".format(sem_dict))
 
-        try:
-            self._state.update_semantics(sem_dict, self._state.missing_field)
-            rospy.loginfo("Updated semantics: {}".format(self._state.current_semantics))
-            self._robot_to_user_pub.publish(random.choice(["OK, I can work with that",
-                                                           "Allright, thanks!"]))
-            self._state.wait_for_robot()
-        except Exception as e:
-            rospy.logerr("Could not update semantics: {}".format(e))
-            self._robot_to_user_pub.publish("Something went terribly wrong, can we try a new command?")
-            self._stop()
+        if additional_semantics:
+            try:
+                self._state.update_semantics(sem_dict, self._state.missing_field)
+                rospy.loginfo("Updated semantics: {}".format(self._state.current_semantics))
+                self._robot_to_user_pub.publish(random.choice(["OK, I can work with that",
+                                                               "Allright, thanks!"]))
+                self._state.wait_for_robot()
+            except Exception as e:
+                rospy.logerr("Could not update semantics: {}".format(e))
+                self._robot_to_user_pub.publish("Something went terribly wrong, can we try a new command?")
+                self._stop()
+        else:
+            example = self._parser.get_random_sentence(self._state.target)
+            sentence = random.choice(["Give me something useful"])
+            sentence += ", like '{}'".format(example)
+            self._robot_to_user_pub.publish(sentence)
+            self._state.wait_for_user(missing_field=self._state.missing_field, target=self._state.target)
 
     def _handle_user_while_waiting_for_robot(self, text):
         sentence = random.choice(["I'm busy, give me a sec.",
