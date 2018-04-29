@@ -197,6 +197,7 @@ class ConversationEngine(object):
 
         stop_words = ["stop", "cancel", "quit", "reset"]
         if any([word for word in stop_words if word in text]):
+            rospy.loginfo("_handle_special_commands('{}'): stop action server".format(text))
             if self._state.state == ConversationState.IDLE:
                 self._robot_to_user_pub.publish(random.choice(["I'm not busy",
                                                                "I'm not doing anything"]))
@@ -207,9 +208,18 @@ class ConversationEngine(object):
 
         kill_words = ["sudo kill"]
         if any([word for word in kill_words if word in text]):
+            rospy.loginfo("_handle_special_commands('{}'): kill action server".format(text))
+
+            self._action_client.cancel_all_async()
+
             self._robot_to_user_pub.publish(random.choice(["Woah, sorry dude!"]))
             os.system("rosnode kill /state_machine")
             self._robot_to_user_pub.publish(random.choice(["Killed the action_server, pray for resurrection"]))
+
+            self._state = ConversationState()
+            self._latest_feedback = None
+
+            self._say_ready_for_command()  # This is assuming the state machine is back online when a command is received
 
             return True
 
@@ -221,8 +231,11 @@ class ConversationEngine(object):
             self._robot_to_user_pub.publish(random.choice(["Headshot to the action_server, it had enough time to comply"]))
             self._state = ConversationState()
 
+            self._say_ready_for_command()  # This is assuming the state machine is back online when a command is received
+
         self._state.aborting(rospy.Duration(20), hard_kill)
         self._action_client.cancel_all_async()
+        self._latest_feedback = None
 
         self._robot_to_user_pub.publish(random.choice(["Stop! Hammer time",
                                                        "Oops, sorry",
@@ -321,6 +334,8 @@ class ConversationEngine(object):
     def _done_cb(self, task_outcome):
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
         assert isinstance(task_outcome, TaskOutcome)
+
+        self._latest_feedback = None
 
         if task_outcome.succeeded:
             rospy.loginfo("Action succeeded")
