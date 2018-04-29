@@ -246,7 +246,7 @@ class ConversationEngine(object):
         rospy.loginfo("_handle_command('{}')".format(text))
 
         words = text.strip().split(" ")
-        self._state.initialize_semantics(self._parser.parse(self._knowledge.grammar_target, words))
+        self._state.initialize_semantics(self._parser.parse(self._knowledge.grammar_target, words, debug=True))
 
         result_sentence = None
 
@@ -282,7 +282,7 @@ class ConversationEngine(object):
         rospy.loginfo("_handle_additional_info('{}')".format(text))
 
         words = text.strip().split(" ")
-        additional_semantics = self._parser.parse(self._knowledge.grammar_target, words)
+        additional_semantics = self._parser.parse(self._state.target, words, debug=True)
 
         rospy.loginfo("additional_semantics: {}".format(additional_semantics))
         sem_str = json.dumps(additional_semantics)
@@ -353,10 +353,13 @@ class ConversationEngine(object):
 
         elif task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION:
             rospy.loginfo("Action needs more info from user")
-            self._robot_to_user_pub.publish("".join(task_outcome.messages))
 
+            sentence = "".join(task_outcome.messages)
             self._state.wait_for_user(target=self._get_grammar_target(task_outcome.missing_field),
                                       missing_field=task_outcome.missing_field)
+            example = self._parser.get_random_sentence(self._state.target)
+            sentence += " For example: '{}'".format(example)
+            self._robot_to_user_pub.publish(sentence)
 
         elif task_outcome.result == TaskOutcome.RESULT_TASK_EXECUTION_FAILED:
             rospy.loginfo("Action execution failed")
