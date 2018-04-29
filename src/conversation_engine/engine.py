@@ -197,13 +197,19 @@ class ConversationEngine(object):
 
         stop_words = ["stop", "cancel", "quit", "reset"]
         if any([word for word in stop_words if word in text]):
-            rospy.loginfo("_handle_special_commands('{}'): stop action server".format(text))
+            rospy.loginfo("_handle_special_commands('{}'):".format(text))
             if self._state.state == ConversationState.IDLE:
                 self._robot_to_user_pub.publish(random.choice(["I'm not busy",
                                                                "I'm not doing anything"]))
                 self._say_ready_for_command()
-            else:
+            elif self._state.state == ConversationState.WAIT_FOR_ROBOT:
                 self._stop()
+            elif self._state.state == ConversationState.WAIT_FOR_USER:
+                self._robot_to_user_pub.publish(random.choice(["I'm waiting for you, there's nothing to stop",
+                                                               "I can't stop, you stop!"]))
+                self._say_ready_for_command()
+            elif self._state.state == ConversationState.ABORTING:
+                self._robot_to_user_pub.publish(random.choice(["I'm already stopping, gimme some time!"]))
             return True
 
         kill_words = ["sudo kill"]
@@ -387,6 +393,7 @@ class ConversationEngine(object):
 
     def _get_grammar_target(self, missing_field_path):
         deepest_field_name = missing_field_path.split('.')[-1]
+
         if 'location' in deepest_field_name:
             return 'ROOM_OR_LOCATION'
         else:
