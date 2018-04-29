@@ -111,9 +111,19 @@ class ConversationState(object):
         self._target = None
         self._missing_field = None
 
-    def aborting(self):
+    def aborting(self, timeout, timeout_callback):
+        """Set the state to ABORTING. If the action server hasn't aborted the action after the given timeout,
+        call the callback to deal with that
+        :param timeout duration to wait before killing
+        :type timeout rospy.Duration
+        :param timeout_callback callback is called when the aborting takes too long
+        :type callable(event: rospy.TimerEvent)"""
         rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.ABORTING))
         self._state = ConversationState.ABORTING
+
+        rospy.Timer(timeout,
+                    timeout_callback,
+                    oneshot=True)
 
     def initialize_semantics(self, semantics):
         self._current_semantics = semantics
@@ -205,7 +215,13 @@ class ConversationEngine(object):
 
     def _stop(self):
         rospy.loginfo("_stop(): Cancelling goals, resetting state")
-        self._state.aborting()
+
+        def hard_kill(event):
+            os.system("rosnode kill /state_machine")
+            self._robot_to_user_pub.publish(random.choice(["Headshot to the action_server, it had enough time to comply"]))
+            self._state = ConversationState()
+
+        self._state.aborting(rospy.Duration(20), hard_kill)
         self._action_client.cancel_all_async()
 
         self._robot_to_user_pub.publish(random.choice(["Stop! Hammer time",
