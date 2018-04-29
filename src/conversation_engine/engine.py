@@ -1,3 +1,6 @@
+# System
+import os
+
 # ROS
 import actionlib
 import random
@@ -163,13 +166,7 @@ class ConversationEngine(object):
 
         text = sanitize_text(msg.data)
 
-        stop_words = ["stop", "cancel", "quit", "reset", "exit"]
-        if any([word for word in stop_words if word in text]):
-            if self._state.state == ConversationState.IDLE:
-                self._robot_to_user_pub.publish(random.choice(["I'm not busy", "I'm not doing anything"]))
-                self._say_ready_for_command()
-            else:
-                self._stop()
+        if self._handle_special_commands(text):
             return
 
         if self._state.state == ConversationState.IDLE:
@@ -183,6 +180,28 @@ class ConversationEngine(object):
             self._handle_user_while_waiting_for_robot(text)
         elif self._state.state == ConversationState.ABORTING:
             self._handle_user_while_aborting(text)
+
+    def _handle_special_commands(self, text):
+        """Check for special commands that should not be parsed further
+        @returns bool indicating if the text is a special command"""
+
+        stop_words = ["stop", "cancel", "quit", "reset"]
+        if any([word for word in stop_words if word in text]):
+            if self._state.state == ConversationState.IDLE:
+                self._robot_to_user_pub.publish(random.choice(["I'm not busy",
+                                                               "I'm not doing anything"]))
+                self._say_ready_for_command()
+            else:
+                self._stop()
+            return True
+
+        kill_words = ["sudo kill"]
+        if any([word for word in kill_words if word in text]):
+            self._robot_to_user_pub.publish(random.choice(["Woah, sorry dude!"]))
+            os.system("rosnode kill /state_machine")
+            self._robot_to_user_pub.publish(random.choice(["Killed the action_server, pray for resurrection"]))
+
+            return True
 
     def _stop(self):
         rospy.loginfo("_stop(): Cancelling goals, resetting state")
