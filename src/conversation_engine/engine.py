@@ -207,8 +207,8 @@ class ConversationEngine(object):
             elif self._state.state == ConversationState.WAIT_FOR_USER:
                 self._robot_to_user_pub.publish(random.choice(["I'm waiting for you, there's nothing to stop",
                                                                "I can't stop, you stop!"]))
-                self._state = ConversationState()
-                self._say_ready_for_command()
+
+                self._start_new_conversation()
             elif self._state.state == ConversationState.ABORTING:
                 self._robot_to_user_pub.publish(random.choice(["I'm already stopping, gimme some time!"]))
             return True
@@ -222,11 +222,7 @@ class ConversationEngine(object):
             self._robot_to_user_pub.publish(random.choice(["Woah, sorry dude!"]))
             os.system("rosnode kill /state_machine")
             self._robot_to_user_pub.publish(random.choice(["Killed the action_server, pray for resurrection"]))
-
-            self._state = ConversationState()
-            self._latest_feedback = None
-
-            self._say_ready_for_command()  # This is assuming the state machine is back online when a command is received
+            self._start_new_conversation()  # This is assuming the state machine is back online when a command is received
 
             return True
 
@@ -236,9 +232,8 @@ class ConversationEngine(object):
         def hard_kill(event):
             os.system("rosnode kill /state_machine")
             self._robot_to_user_pub.publish(random.choice(["Headshot to the action_server, it had enough time to comply"]))
-            self._state = ConversationState()
 
-            self._say_ready_for_command()  # This is assuming the state machine is back online when a command is received
+            self._start_new_conversation()  # This is assuming the state machine is back online when a command is received
 
         self._state.aborting(rospy.Duration(20), hard_kill)
         self._action_client.cancel_all_async()
@@ -247,6 +242,11 @@ class ConversationEngine(object):
         self._robot_to_user_pub.publish(random.choice(["Stop! Hammer time",
                                                        "Oops, sorry",
                                                        "OK, I'll stop"]))
+
+    def _start_new_conversation(self):
+        self._state = ConversationState()
+        self._latest_feedback = None
+        self._say_ready_for_command()  # This is assuming the state machine is back online when a command is received
 
     def _handle_command(self, text):
         """Parse text into goal semantics, send to action_server"""
@@ -281,8 +281,7 @@ class ConversationEngine(object):
                                                  "Would your mother in law understand?",
                                                  "Try 'sudo {}'.".format(text)])
             self._robot_to_user_pub.publish(result_sentence)
-            self._state = ConversationState()
-            self._say_ready_for_command()
+            self._start_new_conversation()
 
     def _handle_additional_info(self, text):
         """Parse text into additional info according to grammar & target received from action_server result"""
@@ -361,8 +360,7 @@ class ConversationEngine(object):
             rospy.loginfo("Action succeeded")
             self._robot_to_user_pub.publish(" ".join(task_outcome.messages))
 
-            self._state = ConversationState()  # Reset the state
-            self._say_ready_for_command()
+            self._start_new_conversation()
 
         elif task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION:
             rospy.loginfo("Action needs more info from user")
@@ -377,20 +375,20 @@ class ConversationEngine(object):
         elif task_outcome.result == TaskOutcome.RESULT_TASK_EXECUTION_FAILED:
             rospy.loginfo("Action execution failed")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
-            self._state = ConversationState()  # Reset the state
-            self._say_ready_for_command()
+
+            self._start_new_conversation()
 
         elif task_outcome.result == TaskOutcome.RESULT_UNKNOWN:
             rospy.loginfo("Action result: unknown")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
-            self._state = ConversationState()  # Reset the state
-            self._say_ready_for_command()
+
+            self._start_new_conversation()
 
         else:
             rospy.loginfo("Action result: other")
             self._robot_to_user_pub.publish("".join(task_outcome.messages))
-            self._state = ConversationState()  # Reset the state
-            self._say_ready_for_command()
+
+            self._start_new_conversation()
 
     def _feedback_cb(self, feedback):
         self._latest_feedback = feedback
