@@ -207,6 +207,7 @@ class ConversationEngine(object):
             elif self._state.state == ConversationState.WAIT_FOR_USER:
                 self._robot_to_user_pub.publish(random.choice(["I'm waiting for you, there's nothing to stop",
                                                                "I can't stop, you stop!"]))
+                self._state = ConversationState()
                 self._say_ready_for_command()
             elif self._state.state == ConversationState.ABORTING:
                 self._robot_to_user_pub.publish(random.choice(["I'm already stopping, gimme some time!"]))
