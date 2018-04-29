@@ -302,6 +302,12 @@ class ConversationEngine(object):
                 rospy.loginfo("Updated semantics: {}".format(self._state.current_semantics))
                 self._robot_to_user_pub.publish(random.choice(["OK, I can work with that",
                                                                "Allright, thanks!"]))
+
+                self._action_client.send_async_task(str(self._state.current_semantics),
+                                                    done_cb=self._done_cb,
+                                                    feedback_cb=self._feedback_cb)
+                rospy.loginfo("Updated task sent: {}".format(self._state.current_semantics))
+
                 self._state.wait_for_robot()
             except Exception as e:
                 rospy.logerr("Could not update semantics: {}".format(e))
