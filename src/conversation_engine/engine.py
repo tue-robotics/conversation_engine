@@ -105,9 +105,20 @@ class ConversationState(object):
         self._target = target
         self._missing_field = missing_field
 
-    def wait_for_robot(self):
-        rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.WAIT_FOR_ROBOT))
+    def wait_for_robot(self, semantics):
+        rospy.loginfo("ConversationState.wait_for_robot({sem}): {old} -> {new}"
+                      .format(old=self._state, new=ConversationState.WAIT_FOR_ROBOT,
+                              sem=semantics))
+
         self._state = ConversationState.WAIT_FOR_ROBOT
+        if not self.current_semantics:
+            rospy.loginfo("Initialize semantics: {}".format(semantics))
+            self._current_semantics = semantics
+        else:
+            updated = ConversationState.__update_semantics(self.current_semantics, semantics, self.missing_field)
+            rospy.loginfo("Update semantics: {orig} + {add} = {new}".format(orig=self.current_semantics, add=semantics, new=updated))
+            self._current_semantics = updated
+
         self._target = None
         self._missing_field = None
 
@@ -125,29 +136,26 @@ class ConversationState(object):
                     timeout_callback,
                     oneshot=True)
 
-    def initialize_semantics(self, semantics):
-        self._current_semantics = semantics
-        rospy.loginfo("Initialized semantics: {}".format(self._current_semantics))
-
-    def update_semantics(self, semantics, missing_field_path):
+    @staticmethod
+    def __update_semantics(old_semantics, semantics, missing_field_path):
         # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
         # the missing information path
+
+        to_be_updated = old_semantics.copy()
 
         # fill semantics in existing semantics
         path_list = missing_field_path.split('.')
         action_index = int(path_list[0].strip('actions[').rstrip(']'))
         fields = path_list[1:]
 
-        elem = self._current_semantics['actions'][action_index]
+        elem = to_be_updated['actions'][action_index]
         for field in fields:
             try:
                 elem = elem[field]
             except KeyError:
                 elem[field] = semantics
 
-
-        rospy.loginfo("Updated semantics: {}".format(self._current_semantics))
-        return
+        return to_be_updated
 
 
 class ConversationEngine(object):
@@ -253,17 +261,16 @@ class ConversationEngine(object):
         rospy.loginfo("_handle_command('{}')".format(text))
 
         words = text.strip().split(" ")
-        self._state.initialize_semantics(self._parser.parse(self._knowledge.grammar_target, words, debug=True))
+        semantics = self._parser.parse(self._knowledge.grammar_target, words, debug=True)
 
         result_sentence = None
 
-        if self._state.current_semantics:
+        if semantics:
+            self._state.wait_for_robot(semantics)
             self._action_client.send_async_task(str(self._state.current_semantics),
                                                 done_cb=self._done_cb,
                                                 feedback_cb=self._feedback_cb)
             rospy.loginfo("Task sent: {}".format(self._state.current_semantics))
-
-            self._state.wait_for_robot()
         else:
             rospy.loginfo("Could not parse '{}'".format(text))
             self._log_invalid_command(text)
@@ -297,8 +304,8 @@ class ConversationEngine(object):
 
         if additional_semantics:
             try:
-                rospy.loginfo("Additional_semantics: {}".format(additional_semantics))
-                self._state.update_semantics(sem_dict, self._state.missing_field)
+                self._state.wait_for_robot(sem_dict)
+
                 self._robot_to_user_pub.publish(random.choice(["OK, I can work with that",
                                                                "Allright, thanks!"]))
 
@@ -307,7 +314,6 @@ class ConversationEngine(object):
                                                     feedback_cb=self._feedback_cb)
                 rospy.loginfo("Updated task sent: {}".format(self._state.current_semantics))
 
-                self._state.wait_for_robot()
             except Exception as e:
                 rospy.logerr("Could not update semantics: {}".format(e))
                 self._robot_to_user_pub.publish("Something went terribly wrong, can we try a new command?")
