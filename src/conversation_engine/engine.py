@@ -18,6 +18,19 @@ from robocup_knowledge import knowledge_loader
 from conversation_engine.msg import ConverseAction, ConverseResult, ConverseFeedback
 
 def sanitize_text(txt):
+    """
+    Remove punctuation and special characters from text and make only lower case.
+    Underscores are preserved
+
+    :param txt: text to be sanitized
+    :type txt: str
+    :return: sanitized text without punctuation, special characters or any uppercase letters
+    :rtype: str
+    >>> sanitize_text('Hello, World!')
+    'hello world'
+    >>> sanitize_text('Dining_table?')
+    'dining_table'
+    """
     stripped = "".join(c for c in txt if c not in """!.,:'?`~@#$%^&*()+=-/\></*-+""")
     lowered = stripped.lower()
 
