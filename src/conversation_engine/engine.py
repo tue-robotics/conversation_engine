@@ -128,7 +128,7 @@ class ConversationState(object):
             rospy.loginfo("Initialize semantics: {}".format(semantics))
             self._current_semantics = semantics
         else:
-            updated = ConversationState.__update_semantics(self.current_semantics, semantics, self.missing_field)
+            updated = ConversationState.update_semantics(self.current_semantics, semantics, self.missing_field)
             rospy.loginfo("Update semantics: {orig} + {add} = {new}".format(orig=self.current_semantics, add=semantics, new=updated))
             self._current_semantics = updated
 
@@ -150,7 +150,21 @@ class ConversationState(object):
                     oneshot=True)
 
     @staticmethod
-    def __update_semantics(old_semantics, semantics, missing_field_path):
+    def update_semantics(old_semantics, semantics, missing_field_path):
+        """
+        Update the dictionary in old_semantics at the path specified in missing_field_path with the content of semantics
+        :param old_semantics: Original dictionary
+        :type old_semantics: Dict[str, str]
+        :param semantics: Data to be entered into old_semantics at missing_field_path
+        :type semantics: Dict[str, str]
+        :param missing_field_path: Where to add semantics into old_semantics
+        :type missing_field_path: str
+        :return: a new dictionary that merges the old and new semantics
+        >>> old = {'actions': [{'action': 'find', 'object': {'type': 'person', 'id': 'lars'}}]}
+        >>> update = {'id': 'couch'}
+        >>> ConversationState.update_semantics(old, update, 'actions[0].source-location')
+        {'actions': [{'action': 'find', 'source-location': {'id': 'couch'}, 'object': {'type': 'person', 'id': 'lars'}}]}
+        """
         # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
         # the missing information path
 
@@ -426,3 +440,7 @@ class ConversationEngine(object):
     def _log_invalid_command(self, text):
         with open("invalid_commands.txt", "a") as dump:
             dump.writelines([text+"\n"])
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
