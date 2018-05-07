@@ -309,7 +309,7 @@ class ConversationEngine(object):
                 rospy.loginfo("Updated task sent: {}".format(self._state.current_semantics))
 
                 self._state.wait_for_robot()
-            except Exception as e:
+            except (KeyError, IndexError) as e:
                 rospy.logerr("Could not update semantics: {}".format(e))
                 self._robot_to_user_pub.publish(random.choice(["Something went terribly wrong, can we try a new command?",
                                                                "I didn't understand that, what do you want me to do?",
