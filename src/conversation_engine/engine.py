@@ -81,7 +81,7 @@ def describe_current_subtask(subtask, prefix=True):
 
 class ConversationState(object):
     """Encapsulate all conversation state.
-    This makes it impossible to transition to a next state without setting the correct fields"""
+    This makes it impossible to transition to a next state of a conversation without setting the correct fields"""
     IDLE = "IDLE"
     WAIT_FOR_USER = "WAIT_FOR_USER"  # Waiting for info from user
     WAIT_FOR_ROBOT = "WAIT_FOR_ROBOT"  # Waiting for the action server to reply with success/aborted (missing info or fail)
@@ -101,17 +101,38 @@ class ConversationState(object):
 
     @property
     def target(self):
+        """The target of the grammar that we use for parsing.
+        An FCFG grammar as used in the grammar_parser consists of a big tree. The target allows to select a subtree
+        :rtype str"""
         return self._target
 
     @property
     def missing_field(self):
+        """A field of information that the action_server misses in a task description.
+        The action_sever can start task execution when there are no more missing_fields
+        :rtype str"""
         return self._missing_field
 
     @property
     def current_semantics(self):
+        """Current semantics is a description of a task, that may be incomplete depending on the progress in the conversation
+        A task description is a dictionary that has a main key 'actions' with a List as it's value
+        Each element of the 'actions' value is again a dictionary describing a more atomic action out of a sequence
+        Each atomic action Dict contains the parameters for that action, eg. where to find something or where to put something
+        This can be a nested dictionary, with the various levels describing the parameters in more detail
+        :rtype Dict[str, List[Dict[str, Union[str, Dict]]]]
+        :return:
+        """
         return self._current_semantics
 
     def wait_for_user(self, target, missing_field):
+        """Transition to state WAIT_FOR_USER
+        We can only start waiting for the user if we know what information is missing and
+        what subtree of the grammar to use to parse the user's text response
+        :param target: indicates to what subtree of a grammar to parse the user's response to
+        :type target: str
+        :param missing_field: where to store the outcome of the parsing to
+        :type missing_field: str according to the same format as used in update_semantics"""
         rospy.loginfo("ConversationState: {old} -> {new}. Target='{t}', missing_field='{mf}'"
                       .format(old=self._state, new=ConversationState.WAIT_FOR_USER,
                               t=target, mf=missing_field))
@@ -120,6 +141,12 @@ class ConversationState(object):
         self._missing_field = missing_field
 
     def wait_for_robot(self, semantics):
+        """
+        Transition to state WAIT_FOR_ROBOT
+        This requires the robot (via the action_server) knows what to do, as specified in semantics
+        :param semantics: A task description dictionary, of the same format that update_semantics uses
+        :type semantics: Dict[str, List[Dict[str, Union[str, Dict]]]]
+        """
         rospy.loginfo("ConversationState.wait_for_robot({sem}): {old} -> {new}"
                       .format(old=self._state, new=ConversationState.WAIT_FOR_ROBOT,
                               sem=semantics))
