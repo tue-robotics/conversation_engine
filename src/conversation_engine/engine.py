@@ -311,7 +311,9 @@ class ConversationEngine(object):
                 self._state.wait_for_robot()
             except Exception as e:
                 rospy.logerr("Could not update semantics: {}".format(e))
-                self._robot_to_user_pub.publish("Something went terribly wrong, can we try a new command?")
+                self._robot_to_user_pub.publish(random.choice(["Something went terribly wrong, can we try a new command?",
+                                                               "I didn't understand that, what do you want me to do?",
+                                                               "What would you like me to do? Could you please rephrase you command?"]))
                 self._stop()
         else:
             example = self._parser.get_random_sentence(self._state.target)
