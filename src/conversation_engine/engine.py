@@ -1,5 +1,6 @@
 # System
 import os
+from copy import deepcopy
 
 # ROS
 import actionlib
@@ -156,8 +157,10 @@ class ConversationState(object):
         :param old_semantics: Original dictionary
         :type old_semantics: Dict[str, str]
         :param semantics: Data to be entered into old_semantics at missing_field_path
-        :type semantics: Dict[str, str]
-        :param missing_field_path: Where to add semantics into old_semantics
+        :type semantics: Dict[str, List[Dict[str, Union[str, Dict]]]]
+        :param missing_field_path: Where to add semantics into old_semantics.
+            missing_field_path is a string of format ```actions[0].level0.level1.level2.levelX```
+            This is used to traverse and expand the nested dictionary that is old_semantics
         :type missing_field_path: str
         :return: a new dictionary that merges the old and new semantics
         >>> old = {'actions': [{'action': 'find', 'object': {'type': 'person', 'id': 'lars'}}]}
@@ -165,22 +168,23 @@ class ConversationState(object):
         >>> ConversationState.update_semantics(old, update, 'actions[0].source-location')
         {'actions': [{'action': 'find', 'source-location': {'id': 'couch'}, 'object': {'type': 'person', 'id': 'lars'}}]}
         """
+
         # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
         # the missing information path
 
-        to_be_updated = old_semantics.copy()
+        to_be_updated = deepcopy(old_semantics)
 
         # fill semantics in existing semantics
         path_list = missing_field_path.split('.')
         action_index = int(path_list[0].strip('actions[').rstrip(']'))
         fields = path_list[1:]
 
-        elem = to_be_updated['actions'][action_index]
-        for field in fields:
+        elem = to_be_updated['actions'][action_index]  # elem = {'action': 'find', 'object': {...}} in the docstring
+        for field in fields:    # field = 'source-location' or 'level0' and later 'level1' in the docstring
             try:
-                elem = elem[field]
+                elem = elem[field]  # Go a level deeper, if that level already exists
             except KeyError:
-                elem[field] = semantics
+                elem[field] = semantics  # If the level does not yet exist, assign the semantics
 
         return to_be_updated
 
