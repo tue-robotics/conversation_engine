@@ -169,9 +169,6 @@ class ConversationEngine(object):
 
         rospy.logdebug("Started conversation engine")
 
-    def __del__(self):
-        self._stop()
-
     def _handle_user_to_robot(self, msg):
         rospy.loginfo("_handle_user_to_robot('{}')".format(msg))
 
