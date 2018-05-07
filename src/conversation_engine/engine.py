@@ -12,7 +12,6 @@ import yaml
 from action_server import Client, TaskOutcome
 from grammar_parser import cfgparser
 from std_msgs.msg import String
-from robocup_knowledge import knowledge_loader
 
 # Conversation engine
 from conversation_engine.msg import ConverseAction, ConverseResult, ConverseFeedback
@@ -151,15 +150,16 @@ class ConversationState(object):
 
 
 class ConversationEngine(object):
-    def __init__(self, robot_name):
-        self._knowledge = knowledge_loader.load_knowledge('challenge_open')
+    def __init__(self, robot_name, grammar, command_target):
 
         self._state = ConversationState()
 
         self._action_client = Client(robot_name)
 
-        self._parser = cfgparser.CFGParser.fromstring(self._knowledge.grammar)
+        self._parser = cfgparser.CFGParser.fromstring(grammar)
         self._robot_name = robot_name
+        self._grammar = grammar
+        self._command_target = command_target
 
         self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self._handle_user_to_robot)
         self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)
@@ -253,7 +253,7 @@ class ConversationEngine(object):
         rospy.loginfo("_handle_command('{}')".format(text))
 
         words = text.strip().split(" ")
-        self._state.initialize_semantics(self._parser.parse(self._knowledge.grammar_target, words, debug=True))
+        self._state.initialize_semantics(self._parser.parse(self._command_target, words, debug=True))
 
         result_sentence = None
 
@@ -344,7 +344,7 @@ class ConversationEngine(object):
                                   "Do you have a command for me?",
                                   "Please tell me what to do."
                                   "Anything to do boss?"])
-        example = self._parser.get_random_sentence(self._knowledge.grammar_target)
+        example = self._parser.get_random_sentence(self._command_target)
 
         sentence += " An example command is: '{}'. ".format(example)
 
