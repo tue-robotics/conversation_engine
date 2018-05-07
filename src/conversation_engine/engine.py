@@ -251,6 +251,9 @@ class ConversationEngine(object):
         rospy.loginfo("_handle_command('{}')".format(text))
 
         words = text.strip().split(" ")
+
+        # The command the user gave is being parsed towards the command_target in the grammar
+        # The parse returns a task description dictionary
         self._state.initialize_semantics(self._parser.parse(self._command_target, words, debug=True))
 
         result_sentence = None
