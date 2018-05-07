@@ -217,7 +217,7 @@ class ConversationEngine(object):
 
             self._action_client.cancel_all_async()
 
-            self._robot_to_user_pub.publish(random.choice(["Woah, sorry dude!"]))
+            self._robot_to_user_pub.publish(random.choice(["Woah, sorry dude for not stopping fast enough!"]))
             os.system("rosnode kill /state_machine")
             self._robot_to_user_pub.publish(random.choice(["Killed the action_server, pray for resurrection"]))
             self._start_new_conversation()  # This is assuming the state machine is back online when a command is received
