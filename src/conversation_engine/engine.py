@@ -1,5 +1,6 @@
 # System
 import os
+from copy import deepcopy
 
 # ROS
 import actionlib
@@ -94,7 +95,7 @@ class ConversationState(object):
 
     @property
     def current_semantics(self):
-        return self._current_semantics
+        return deepcopy(self._current_semantics)
 
     def wait_for_user(self, target, missing_field):
         rospy.loginfo("ConversationState: {old} -> {new}. Target='{t}', missing_field='{mf}'"
