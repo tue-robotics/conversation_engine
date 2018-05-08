@@ -81,11 +81,13 @@ def describe_current_subtask(subtask, prefix=True):
 
 class ConversationState(object):
     """Encapsulate all conversation state.
-    This makes it impossible to transition to a next state of a conversation without setting the correct fields"""
-    IDLE = "IDLE"
+    This makes it impossible to transition to a next state of a conversation without setting the correct fields.
+    Note that this class only encapsulates state and does not send nor receive commands or text to a robot or user
+    """
+    IDLE = "IDLE"  # Conversation not yet started
     WAIT_FOR_USER = "WAIT_FOR_USER"  # Waiting for info from user
     WAIT_FOR_ROBOT = "WAIT_FOR_ROBOT"  # Waiting for the action server to reply with success/aborted (missing info or fail)
-    ABORTING = "ABORTING"
+    ABORTING = "ABORTING"  # The conversation is ABORTING until the robot has complied with the request to abort
 
     def __init__(self):
         rospy.loginfo("New ConversationState")
@@ -125,7 +127,7 @@ class ConversationState(object):
         """
         return self._current_semantics
 
-    def wait_for_user(self, target, missing_field):
+    def set_to_wait_for_user(self, target, missing_field):
         """Transition to state WAIT_FOR_USER
         We can only start waiting for the user if we know what information is missing and
         what subtree of the grammar to use to parse the user's text response
@@ -140,7 +142,7 @@ class ConversationState(object):
         self._target = target
         self._missing_field = missing_field
 
-    def wait_for_robot(self, semantics):
+    def set_to_wait_for_robot(self, semantics):
         """
         Transition to state WAIT_FOR_ROBOT
         This requires the robot (via the action_server) knows what to do, as specified in semantics
@@ -163,7 +165,7 @@ class ConversationState(object):
         self._target = None
         self._missing_field = None
 
-    def aborting(self, timeout, timeout_callback):
+    def set_to_aborting(self, timeout, timeout_callback):
         """Set the state to ABORTING. If the action server hasn't aborted the action after the given timeout,
         call the callback to deal with that
         :param timeout duration to wait before killing
@@ -301,7 +303,7 @@ class ConversationEngine(object):
 
             self._start_new_conversation()  # This is assuming the state machine is back online when a command is received
 
-        self._state.aborting(rospy.Duration(20), hard_kill)
+        self._state.set_to_aborting(rospy.Duration(20), hard_kill)
         self._action_client.cancel_all_async()
         self._latest_feedback = None
 
@@ -324,7 +326,7 @@ class ConversationEngine(object):
         result_sentence = None
 
         if semantics:
-            self._state.wait_for_robot(semantics)
+            self._state.set_to_wait_for_robot(semantics)
             self._action_client.send_async_task(str(self._state.current_semantics),
                                                 done_cb=self._done_cb,
                                                 feedback_cb=self._feedback_cb)
@@ -362,7 +364,7 @@ class ConversationEngine(object):
 
         if additional_semantics:
             try:
-                self._state.wait_for_robot(sem_dict)
+                self._state.set_to_wait_for_robot(sem_dict)
 
                 self._robot_to_user_pub.publish(random.choice(["OK, I can work with that",
                                                                "Allright, thanks!"]))
@@ -381,7 +383,7 @@ class ConversationEngine(object):
             sentence = random.choice(["Give me something useful"])
             sentence += ", like '{}'".format(example)
             self._robot_to_user_pub.publish(sentence)
-            self._state.wait_for_user(missing_field=self._state.missing_field, target=self._state.target)
+            self._state.set_to_wait_for_user(missing_field=self._state.missing_field, target=self._state.target)
 
     def _handle_user_while_waiting_for_robot(self, text):
         sentence = random.choice(["I'm busy, give me a sec.",
@@ -430,8 +432,8 @@ class ConversationEngine(object):
             rospy.loginfo("Action needs more info from user")
 
             sentence = "".join(task_outcome.messages)
-            self._state.wait_for_user(target=self._get_grammar_target(task_outcome.missing_field),
-                                      missing_field=task_outcome.missing_field)
+            self._state.set_to_wait_for_user(target=self._get_grammar_target(task_outcome.missing_field),
+                                             missing_field=task_outcome.missing_field)
             example = self._parser.get_random_sentence(self._state.target)
             sentence += " For example: '{}'".format(example)
             self._robot_to_user_pub.publish(sentence)
