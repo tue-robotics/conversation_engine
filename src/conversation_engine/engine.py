@@ -227,13 +227,10 @@ class ConversationEngine(object):
     def _stop(self):
         rospy.loginfo("_stop(): Cancelling goals, resetting state")
 
-        def hard_kill(event):
-            os.system("rosnode kill /state_machine")
-            self._robot_to_user_pub.publish(random.choice(["Headshot to the action_server, it had enough time to comply"]))
+        def notify_user(event):
+            self._robot_to_user_pub.publish(random.choice(["State machine takes a long time to abort, you can kill it with 'sudo kill'"]))
 
-            self._start_new_conversation()  # This is assuming the state machine is back online when a command is received
-
-        self._state.aborting(rospy.Duration(20), hard_kill)
+        self._state.aborting(rospy.Duration(20), notify_user)
         self._action_client.cancel_all_async()
         self._latest_feedback = None
 
