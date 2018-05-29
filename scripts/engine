@@ -20,7 +20,7 @@ if __name__ == "__main__":
                         help="Path to a file to load the grammar from")
     parser.add_argument('--command-target', type=str, required=False,
                         help="If a grammar is loaded from file, the command-target defines the name of the root of the parse tree")
-    parser.add_argument('--challenge', type=str, default="challenge_open", required=False,
+    parser.add_argument('--challenge', type=str, default="challenge_gpsr", required=False,
                         help="If not specifying a grammar file, specify a challenge name to dynamically load a grammar from")
     args = parser.parse_args(rospy.myargv()[1:])
 
