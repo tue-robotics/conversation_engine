@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+    <node name="conversation_engine" pkg="conversation_engine" type="engine" output="log" respawn="true">
+        <param name="robot" value="amigo"/>
+        <param name="grammar" textfile="$(find grammar_parser)/test/grammar.fcfg"/>
+        <param name="challenge" value="gpsr"/>
+        <!--<param name="command_target" value="T"/>-->
+    </node>
+ </launch>
