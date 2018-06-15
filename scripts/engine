@@ -14,10 +14,10 @@ from conversation_engine import ConversationEngine
 if __name__ == "__main__":
     rospy.init_node("conversation_engine")
 
-    robot = rospy.get_param("robot", "amigo")
-    grammar = rospy.get_param("grammar", None)
-    command_target = rospy.get_param("command_target", None)
-    challenge = rospy.get_param("challenge", "challenge_gpsr")
+    robot = rospy.get_param("robot", "amigo")  # Robot name to use as a namespace for the action client
+    grammar = rospy.get_param("grammar", None)  # String with the grammar to be used
+    command_target = rospy.get_param("command_target", None)  # Node of the grammar tree to parse up to.
+    challenge = rospy.get_param("challenge", "challenge_gpsr")  # Challenge to load grammar and command_target from if `grammar` and `command_target` are empty
 
     grammar = ""
     command_target = ""
