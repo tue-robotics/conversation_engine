@@ -12,33 +12,21 @@ from conversation_engine import ConversationEngine
 
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--robot', type=str, default="amigo",
-                        help="Name of the robot to 'talk' with")
-    parser.add_argument('--grammar-file', type=str, required=False,
-                        help="Path to a file to load the grammar from")
-    parser.add_argument('--command-target', type=str, required=False,
-                        help="If a grammar is loaded from file, the command-target defines the name of the root of the parse tree")
-    parser.add_argument('--challenge', type=str, default="challenge_gpsr", required=False,
-                        help="If not specifying a grammar file, specify a challenge name to dynamically load a grammar from")
-    args = parser.parse_args(rospy.myargv()[1:])
-
     rospy.init_node("conversation_engine")
+
+    robot = rospy.get_param("robot", "amigo")
+    grammar = rospy.get_param("grammar", None)
+    command_target = rospy.get_param("command_target", None)
+    challenge = rospy.get_param("challenge", "challenge_gpsr")
 
     grammar = ""
     command_target = ""
-    challenge = args.challenge
 
-    if args.grammar_file and args.command_target:
-        with open(args.grammar_file, "r") as gf:
-            grammar = "".join(gf.readlines())
-        command_target = args.command_target
-    elif args.grammar_file and not args.command_target:
-        rospy.logerr("A grammar-file was specified without a command-target")
+    if grammar and not command_target:
+        rospy.logerr("A grammar was specified without a command_target")
         exit(-1)
-    elif not args.grammar_file and args.command_target:
-        rospy.logerr("A command-target was specified without a grammar-file")
+    elif not grammar and command_target:
+        rospy.logerr("A command_target was specified without a grammar")
         exit(-1)
     elif not challenge:
         rospy.logerr("Not any source for the grammar and target was specified")
@@ -49,8 +37,8 @@ if __name__ == "__main__":
         grammar = knowledge.grammar
         command_target = knowledge.grammar_target
 
-    rospy.loginfo("Starting conversation engine with robot {}".format(args.robot))
-    conv_engine = ConversationEngine(args.robot, grammar, command_target=command_target)
+    rospy.loginfo("Starting conversation engine with robot {}".format(robot))
+    conv_engine = ConversationEngine(robot, grammar, command_target=command_target)
 
     rospy.loginfo("Conversation engine started")
     rospy.spin()
