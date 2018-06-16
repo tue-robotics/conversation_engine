@@ -12,45 +12,37 @@ from conversation_engine import ConversationEngine
 
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--robot', type=str, default="amigo",
-                        help="Name of the robot to 'talk' with")
-    parser.add_argument('--grammar-file', type=str, required=False,
-                        help="Path to a file to load the grammar from")
-    parser.add_argument('--command-target', type=str, required=False,
-                        help="If a grammar is loaded from file, the command-target defines the name of the root of the parse tree")
-    parser.add_argument('--challenge', type=str, default="challenge_gpsr", required=False,
-                        help="If not specifying a grammar file, specify a challenge name to dynamically load a grammar from")
-    args = parser.parse_args(rospy.myargv()[1:])
-
     rospy.init_node("conversation_engine")
 
-    grammar = ""
-    command_target = ""
-    challenge = args.challenge
+    robot = rospy.get_param("~robot", None)  # Robot name to use as a namespace for the action client
+    grammar = rospy.get_param("~grammar", None)  # String with the grammar to be used
+    command_target = rospy.get_param("~command_target", None)  # Node of the grammar tree to parse up to.
+    challenge = rospy.get_param("~challenge", None)  # Challenge to load grammar and command_target from if `grammar` and `command_target` are empty
 
-    if args.grammar_file and args.command_target:
-        with open(args.grammar_file, "r") as gf:
-            grammar = "".join(gf.readlines())
-        command_target = args.command_target
-    elif args.grammar_file and not args.command_target:
-        rospy.logerr("A grammar-file was specified without a command-target")
+    if grammar and command_target and challenge:
+        rospy.logerr("Specify either `grammar` and `command_target` or only `challenge`, not all three")
         exit(-1)
-    elif not args.grammar_file and args.command_target:
-        rospy.logerr("A command-target was specified without a grammar-file")
-        exit(-1)
-    elif not challenge:
-        rospy.logerr("Not any source for the grammar and target was specified")
-        exit(-1)
+
+    if grammar and command_target:
+        rospy.loginfo("command_target: '{}'".format(command_target))
+        rospy.loginfo("grammar: '{}'".format(grammar[:10]))
     else:
-        rospy.loginfo("Loading grammar and target from '{}'".format(challenge))
+        if grammar and not command_target:
+            rospy.logerr("A grammar was specified without a command_target")
+            exit(-1)
+        elif not grammar and command_target:
+            rospy.logerr("A command_target was specified without a grammar")
+            exit(-1)
+
+    if challenge:
+        rospy.loginfo("Loading grammar and target from challenge '{}'".format(challenge))
         knowledge = knowledge_loader.load_knowledge(challenge)
         grammar = knowledge.grammar
         command_target = knowledge.grammar_target
 
-    rospy.loginfo("Starting conversation engine with robot {}".format(args.robot))
-    conv_engine = ConversationEngine(args.robot, grammar, command_target=command_target)
+
+    rospy.loginfo("Starting conversation engine with robot {}".format(robot))
+    conv_engine = ConversationEngine(robot, grammar, command_target=command_target)
 
     rospy.loginfo("Conversation engine started")
     rospy.spin()
