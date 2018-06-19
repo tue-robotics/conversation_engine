@@ -401,10 +401,15 @@ class ConversationEngine(object):
     def _get_grammar_target(missing_field_path):
         deepest_field_name = missing_field_path.split('.')[-1]
 
+        grammar_target = "T"
+
         if 'location' in deepest_field_name:
-            return 'ROOM_OR_LOCATION'
-        else:
-            return "T"
+            grammar_target = 'ROOM_OR_LOCATION'
+        elif 'entity' in deepest_field_name:
+            grammar_target = 'ROOM_OR_LOCATION'
+
+        rospy.loginfo("Missing information '{}' must match '{}' in grammar".format(missing_field_path, grammar_target))
+        return grammar_target
 
     @staticmethod
     def _log_invalid_command(text):
