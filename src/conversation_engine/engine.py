@@ -26,7 +26,13 @@ def sanitize_text(txt):
                "kitchen cabinet": "kitchen_cabinet",
                "side table": "side_table",
                "living room": "living_room",
-               "dining room": "dining_room"}
+               "dining room": "dining_room",
+               "storage table":"storage_table",
+               "end table":"end_table",
+               "chocolate drink":"chocolate_drink",
+               "grape juice":"grape_juice",
+               "orange juice":"orange_juice",
+               "potato chips":"potato_chips"}
 
     for key, value in mapping.iteritems():
         lowered = lowered.replace(key, value)
