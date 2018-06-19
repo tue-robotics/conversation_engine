@@ -242,6 +242,7 @@ class ConversationEngine(object):
         self._state = ConversationState()
         self._latest_feedback = None
         self._say_ready_for_command()  # This is assuming the state machine is back online when a command is received
+        self._start_wait_for_command(self._grammar, self._command_target)
 
     def _handle_command(self, text):
         """Parse text into goal semantics, send to action_server"""
@@ -428,6 +429,9 @@ class ConversationEngine(object):
 
     def _on_task_outcome_unknown(self, message):
         self._say_to_user(message)
+
+    def _start_wait_for_command(self, grammar, target):
+        pass
 
 
 class ConversationEngineUsingTopic(ConversationEngine):
