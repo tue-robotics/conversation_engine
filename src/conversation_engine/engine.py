@@ -452,18 +452,3 @@ class ConversationEngineUsingTopic(ConversationEngine):
     def _say_to_user(self, message):
         self._robot_to_user_pub.publish(message)
 
-    def _on_task_successful(self, message):
-        self._say_to_user(message)
-
-    def _on_request_missing_information(self, description, grammar, target):
-        rospy.loginfo("_request_missing_information('{}', '{}...', '{}')".format(description, grammar[:10], target))
-
-        example = self._parser.get_random_sentence(self._state.target)
-        description += " For example: '{}'".format(example)
-        self._say_to_user(description)
-
-    def _on_task_outcome_failed(self, message):
-        self._say_to_user(message)
-
-    def _on_task_outcome_unknown(self, message):
-        self._say_to_user(message)
