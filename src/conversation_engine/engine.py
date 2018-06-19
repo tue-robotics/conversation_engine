@@ -163,17 +163,21 @@ class ConversationEngine(object):
         self._grammar = grammar
         self._command_target = command_target
 
-        self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self._handle_user_to_robot)
+        self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self.user_to_robot_msg)
         self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)
 
         self._latest_feedback = None
 
         rospy.logdebug("Started conversation engine")
 
-    def _handle_user_to_robot(self, msg):
-        rospy.loginfo("_handle_user_to_robot('{}')".format(msg))
+    def user_to_robot_text(self, text):
+        self._handle_user_to_robot(text)
 
-        text = sanitize_text(msg.data)
+    def user_to_robot_msg(self, msg):
+        self._handle_user_to_robot(msg.data)
+
+    def _handle_user_to_robot(self, text):
+        rospy.loginfo("_handle_user_to_robot('{}')".format(text))
 
         if self._handle_special_commands(text):
             return
