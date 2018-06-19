@@ -368,16 +368,14 @@ class ConversationEngine(object):
             self._robot_to_user_pub.publish(" ".join(task_outcome.messages))
 
             self._start_new_conversation()
-
         elif task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION:
             rospy.loginfo("Action needs more info from user")
 
             sentence = "".join(task_outcome.messages)
-            self._state.wait_for_user(target=self._get_grammar_target(task_outcome.missing_field),
+            target = self._get_grammar_target(task_outcome.missing_field)
+            self._state.wait_for_user(target=target,
                                       missing_field=task_outcome.missing_field)
-            example = self._parser.get_random_sentence(self._state.target)
-            sentence += " For example: '{}'".format(example)
-            self._robot_to_user_pub.publish(sentence)
+            self._request_missing_information(sentence, self._grammar, target)
 
         elif task_outcome.result == TaskOutcome.RESULT_TASK_EXECUTION_FAILED:
             rospy.loginfo("Action execution failed")
@@ -416,3 +414,11 @@ class ConversationEngine(object):
     def _log_invalid_command(text):
         with open("invalid_commands.txt", "a") as dump:
             dump.writelines([text + "\n"])
+
+    def _request_missing_information(self, description, grammar, target):
+        rospy.loginfo("_request_missing_information('{}', '{}...', '{}')".format(description, grammar[:10], target))
+
+        example = self._parser.get_random_sentence(self._state.target)
+        description += " For example: '{}'".format(example)
+        self._robot_to_user_pub.publish(description)
+
