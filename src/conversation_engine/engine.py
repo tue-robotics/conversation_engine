@@ -365,7 +365,7 @@ class ConversationEngine(object):
 
         if task_outcome.succeeded:
             rospy.loginfo("Action succeeded")
-            self._robot_to_user_pub.publish(" ".join(task_outcome.messages))
+            self._on_task_successful(" ".join(task_outcome.messages))
 
             self._start_new_conversation()
         elif task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION:
@@ -375,17 +375,18 @@ class ConversationEngine(object):
             target = self._get_grammar_target(task_outcome.missing_field)
             self._state.wait_for_user(target=target,
                                       missing_field=task_outcome.missing_field)
-            self._request_missing_information(sentence, self._grammar, target)
+            self._on_request_missing_information(sentence, self._grammar, target)
 
         elif task_outcome.result == TaskOutcome.RESULT_TASK_EXECUTION_FAILED:
             rospy.loginfo("Action execution failed")
-            self._robot_to_user_pub.publish("".join(task_outcome.messages))
+
+            self._on_task_outcome_failed("".join(task_outcome.messages))
 
             self._start_new_conversation()
 
         elif task_outcome.result == TaskOutcome.RESULT_UNKNOWN:
             rospy.loginfo("Action result: unknown")
-            self._robot_to_user_pub.publish("".join(task_outcome.messages))
+            self._on_task_outcome_unknown("".join(task_outcome.messages))
 
             self._start_new_conversation()
 
@@ -415,10 +416,18 @@ class ConversationEngine(object):
         with open("invalid_commands.txt", "a") as dump:
             dump.writelines([text + "\n"])
 
-    def _request_missing_information(self, description, grammar, target):
+    def _on_task_successful(self, message):
+        self._robot_to_user_pub.publish(message)
+
+    def _on_request_missing_information(self, description, grammar, target):
         rospy.loginfo("_request_missing_information('{}', '{}...', '{}')".format(description, grammar[:10], target))
 
         example = self._parser.get_random_sentence(self._state.target)
         description += " For example: '{}'".format(example)
         self._robot_to_user_pub.publish(description)
 
+    def _on_task_outcome_failed(self, message):
+        self._robot_to_user_pub.publish(message)
+
+    def _on_task_outcome_unknown(self, message):
+        self._robot_to_user_pub.publish(message)
