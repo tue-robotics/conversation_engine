@@ -152,7 +152,7 @@ class ConversationState(object):
 
 
 class ConversationEngine(object):
-    def __init__(self, robot_name, grammar, command_target):
+    def __init__(self, robot_name, grammar, command_target, give_examples=True):
 
         self._state = ConversationState()
 
@@ -162,6 +162,8 @@ class ConversationEngine(object):
         self._robot_name = robot_name
         self._grammar = grammar
         self._command_target = command_target
+
+        self.give_examples = give_examples
 
         self._latest_feedback = None
 
@@ -315,9 +317,10 @@ class ConversationEngine(object):
                                    "What would you like me to do? Could you please rephrase you command?"]))
                 self._stop()
         else:
-            example = self._parser.get_random_sentence(self._state.target)
             sentence = random.choice(["Give me something useful"])
-            sentence += ", like '{}'".format(example)
+            if self.give_examples:
+                example = self._parser.get_random_sentence(self._state.target)
+                sentence += ", like '{}'".format(example)
             self._say_to_user(sentence)
             self._state.wait_for_user(missing_field=self._state.missing_field, target=self._state.target)
 
@@ -346,9 +349,11 @@ class ConversationEngine(object):
                                   "Do you have a command for me?",
                                   "Please tell me what to do."
                                   "Anything to do boss?"])
-        example = self._parser.get_random_sentence(self._command_target)
 
-        sentence += " An example command is: '{}'. ".format(example)
+        if self.give_examples:
+            example = self._parser.get_random_sentence(self._command_target)
+
+            sentence += " An example command is: '{}'. ".format(example)
 
         self._say_to_user(sentence)
 
@@ -425,8 +430,9 @@ class ConversationEngine(object):
     def _on_request_missing_information(self, description, grammar, target):
         rospy.loginfo("_request_missing_information('{}', '{}...', '{}')".format(description, grammar[:10], target))
 
-        example = self._parser.get_random_sentence(self._state.target)
-        description += " For example: '{}'".format(example)
+        if self.give_examples:
+            example = self._parser.get_random_sentence(self._state.target)
+            description += " For example: '{}'".format(example)
         self._say_to_user(description)
 
     def _on_task_outcome_failed(self, message):
