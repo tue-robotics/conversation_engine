@@ -2,7 +2,7 @@
 
 import rospy
 from robocup_knowledge import knowledge_loader
-from conversation_engine import ConversationEngine
+from conversation_engine import ConversationEngineUsingTopic
 
 
 def main():
@@ -39,7 +39,7 @@ def main():
         command_target = knowledge.grammar_target
 
     rospy.loginfo("Starting conversation engine with robot {}".format(robot))
-    ConversationEngine(robot, grammar, command_target=command_target)
+    ConversationEngineUsingTopic(robot, grammar, command_target=command_target)
 
     rospy.loginfo("Conversation engine started")
     rospy.spin()

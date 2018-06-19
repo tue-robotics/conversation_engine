@@ -163,18 +163,12 @@ class ConversationEngine(object):
         self._grammar = grammar
         self._command_target = command_target
 
-        self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self.user_to_robot_msg)
-        self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)
-
         self._latest_feedback = None
 
         rospy.logdebug("Started conversation engine")
 
     def user_to_robot_text(self, text):
         self._handle_user_to_robot(text)
-
-    def user_to_robot_msg(self, msg):
-        self._handle_user_to_robot(msg.data)
 
     def _handle_user_to_robot(self, text):
         rospy.loginfo("_handle_user_to_robot('{}')".format(text))
@@ -202,18 +196,18 @@ class ConversationEngine(object):
         if any([word for word in stop_words if word in text]):
             rospy.loginfo("_handle_special_commands('{}'):".format(text))
             if self._state.state == ConversationState.IDLE:
-                self._robot_to_user_pub.publish(random.choice(["I'm not busy",
+                self._say_to_user(random.choice(["I'm not busy",
                                                                "I'm not doing anything"]))
                 self._say_ready_for_command()
             elif self._state.state == ConversationState.WAIT_FOR_ROBOT:
                 self._stop()
             elif self._state.state == ConversationState.WAIT_FOR_USER:
-                self._robot_to_user_pub.publish(random.choice(["I'm waiting for you, there's nothing to stop",
+                self._say_to_user(random.choice(["I'm waiting for you, there's nothing to stop",
                                                                "I can't stop, you stop!"]))
 
                 self._start_new_conversation()
             elif self._state.state == ConversationState.ABORTING:
-                self._robot_to_user_pub.publish(random.choice(["I'm already stopping, gimme some time!"]))
+                self._say_to_user(random.choice(["I'm already stopping, gimme some time!"]))
             return True
 
         kill_words = ["sudo kill"]
@@ -222,9 +216,9 @@ class ConversationEngine(object):
 
             self._action_client.cancel_all_async()
 
-            self._robot_to_user_pub.publish(random.choice(["Woah, sorry dude for not stopping fast enough!"]))
+            self._say_to_user(random.choice(["Woah, sorry dude for not stopping fast enough!"]))
             os.system("rosnode kill /state_machine")
-            self._robot_to_user_pub.publish(random.choice(["Killed the action_server, pray for resurrection"]))
+            self._say_to_user(random.choice(["Killed the action_server, pray for resurrection"]))
             self._start_new_conversation()  # This is assuming the state machine is back online when a command is received
 
             return True
@@ -233,14 +227,14 @@ class ConversationEngine(object):
         rospy.loginfo("_stop(): Cancelling goals, resetting state")
 
         def notify_user(event):
-            self._robot_to_user_pub.publish(
+            self._say_to_user(
                 random.choice(["State machine takes a long time to abort, you can kill it with 'sudo kill'"]))
 
         self._state.aborting(rospy.Duration(20), notify_user)
         self._action_client.cancel_all_async()
         self._latest_feedback = None
 
-        self._robot_to_user_pub.publish(random.choice(["Stop! Hammer time",
+        self._say_to_user(random.choice(["Stop! Hammer time",
                                                        "Oops, sorry",
                                                        "OK, I'll stop"]))
 
@@ -284,7 +278,7 @@ class ConversationEngine(object):
                                                  "Something went terribly wrong.",
                                                  "Would your mother in law understand?",
                                                  "Try 'sudo {}'.".format(text)])
-            self._robot_to_user_pub.publish(result_sentence)
+            self._say_to_user(result_sentence)
             self._start_new_conversation()
 
     def _handle_additional_info(self, text):
@@ -303,7 +297,7 @@ class ConversationEngine(object):
             try:
                 rospy.loginfo("Additional_semantics: {}".format(additional_semantics))
                 self._state.update_semantics(sem_dict, self._state.missing_field)
-                self._robot_to_user_pub.publish(random.choice(["OK, I can work with that",
+                self._say_to_user(random.choice(["OK, I can work with that",
                                                                "Allright, thanks!"]))
 
                 self._action_client.send_async_task(str(self._state.current_semantics),
@@ -314,7 +308,7 @@ class ConversationEngine(object):
                 self._state.wait_for_robot()
             except (KeyError, IndexError) as e:
                 rospy.logerr("Could not update semantics: {}".format(e))
-                self._robot_to_user_pub.publish(
+                self._say_to_user(
                     random.choice(["Something went terribly wrong, can we try a new command?",
                                    "I didn't understand that, what do you want me to do?",
                                    "What would you like me to do? Could you please rephrase you command?"]))
@@ -323,7 +317,7 @@ class ConversationEngine(object):
             example = self._parser.get_random_sentence(self._state.target)
             sentence = random.choice(["Give me something useful"])
             sentence += ", like '{}'".format(example)
-            self._robot_to_user_pub.publish(sentence)
+            self._say_to_user(sentence)
             self._state.wait_for_user(missing_field=self._state.missing_field, target=self._state.target)
 
     def _handle_user_while_waiting_for_robot(self, text):
@@ -333,7 +327,7 @@ class ConversationEngine(object):
         if self._latest_feedback:
             sentence += " " + describe_current_subtask(self._latest_feedback.current_subtask)
 
-        self._robot_to_user_pub.publish(sentence)
+        self._say_to_user(sentence)
 
     def _handle_user_while_aborting(self, text):
         sentence = random.choice(["Yes, I'll stop ",
@@ -342,7 +336,7 @@ class ConversationEngine(object):
         if self._latest_feedback:
             sentence += describe_current_subtask(self._latest_feedback.current_subtask, prefix=False)
 
-        self._robot_to_user_pub.publish(sentence)
+        self._say_to_user(sentence)
 
     def _say_ready_for_command(self):
         sentence = random.choice(["I'm ready for a command.",
@@ -355,7 +349,7 @@ class ConversationEngine(object):
 
         sentence += " An example command is: '{}'. ".format(example)
 
-        self._robot_to_user_pub.publish(sentence)
+        self._say_to_user(sentence)
 
     def _done_cb(self, task_outcome):
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
@@ -392,7 +386,7 @@ class ConversationEngine(object):
 
         else:
             rospy.loginfo("Action result: other")
-            self._robot_to_user_pub.publish("".join(task_outcome.messages))
+            self._say_to_user("".join(task_outcome.messages))
 
             self._start_new_conversation()
 
@@ -400,7 +394,7 @@ class ConversationEngine(object):
         self._latest_feedback = feedback
 
         rospy.loginfo(feedback.current_subtask)
-        self._robot_to_user_pub.publish(describe_current_subtask(feedback.current_subtask))
+        self._say_to_user(describe_current_subtask(feedback.current_subtask))
 
     @staticmethod
     def _get_grammar_target(missing_field_path):
@@ -416,18 +410,51 @@ class ConversationEngine(object):
         with open("invalid_commands.txt", "a") as dump:
             dump.writelines([text + "\n"])
 
+    def _say_to_user(self, message):
+        raise NotImplementedError("How to say something to the user must be implemented in the subclass. Signature: ```_say_to_user(message: str)```")
+
     def _on_task_successful(self, message):
-        self._robot_to_user_pub.publish(message)
+        self._say_to_user(message)
 
     def _on_request_missing_information(self, description, grammar, target):
         rospy.loginfo("_request_missing_information('{}', '{}...', '{}')".format(description, grammar[:10], target))
 
         example = self._parser.get_random_sentence(self._state.target)
         description += " For example: '{}'".format(example)
-        self._robot_to_user_pub.publish(description)
+        self._say_to_user(description)
 
     def _on_task_outcome_failed(self, message):
-        self._robot_to_user_pub.publish(message)
+        self._say_to_user(message)
 
     def _on_task_outcome_unknown(self, message):
+        self._say_to_user(message)
+
+
+class ConversationEngineUsingTopic(ConversationEngine):
+    def __init__(self, robot_name, grammar, command_target):
+        super(ConversationEngineUsingTopic, self).__init__(robot_name, grammar, command_target)
+
+        self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self.user_to_robot_msg)
+        self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)
+
+    def user_to_robot_msg(self, msg):
+        self._handle_user_to_robot(msg.data)
+
+    def _say_to_user(self, message):
         self._robot_to_user_pub.publish(message)
+
+    def _on_task_successful(self, message):
+        self._say_to_user(message)
+
+    def _on_request_missing_information(self, description, grammar, target):
+        rospy.loginfo("_request_missing_information('{}', '{}...', '{}')".format(description, grammar[:10], target))
+
+        example = self._parser.get_random_sentence(self._state.target)
+        description += " For example: '{}'".format(example)
+        self._say_to_user(description)
+
+    def _on_task_outcome_failed(self, message):
+        self._say_to_user(message)
+
+    def _on_task_outcome_unknown(self, message):
+        self._say_to_user(message)
