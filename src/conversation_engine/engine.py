@@ -1,36 +1,32 @@
 # System
+import json
 import os
+# ROS
+import random
 from copy import deepcopy
 
-# ROS
-import actionlib
-import random
 import rospy
-import json
 import yaml
-
 # TU/e Robotics
 from action_server import Client, TaskOutcome
 from grammar_parser import cfgparser
 from std_msgs.msg import String
 
-# Conversation engine
-from conversation_engine.msg import ConverseAction, ConverseResult, ConverseFeedback
 
 def sanitize_text(txt):
     stripped = "".join(c for c in txt if c not in """!.,:'?`~@#$%^&*()+=-/\></*-+""")
     lowered = stripped.lower()
 
-    mapping = { "dining table": "dining_table",
-                "display case": "display_case",
-                "storage shelf": "storage_shelf",
-                "couch table": "couch_table",
-                "tv table": "tv_table",
-                "kitchen table": "kitchen_table",
-                "kitchen cabinet": "kitchen_cabinet",
-                "side table": "side_table",
-                "living room": "living_room",
-                "dining room": "dining_room"}
+    mapping = {"dining table": "dining_table",
+               "display case": "display_case",
+               "storage shelf": "storage_shelf",
+               "couch table": "couch_table",
+               "tv table": "tv_table",
+               "kitchen table": "kitchen_table",
+               "kitchen cabinet": "kitchen_cabinet",
+               "side table": "side_table",
+               "living room": "living_room",
+               "dining room": "dining_room"}
 
     for key, value in mapping.iteritems():
         lowered = lowered.replace(key, value)
@@ -40,23 +36,23 @@ def sanitize_text(txt):
 
 def describe_current_subtask(subtask, prefix=True):
     """Make a 'natural' language description of subtask name"""
-    to_verb = { "AnswerQuestion": "answering a question",
-                "ArmGoal": "moving my arm",
-                "DemoPresentation": "giving a demo",
-                "Find": "finding",
-                "Follow": "following",
-                "Guide": "guiding",
-                "GripperGoal": "moving my gripper",
-                "HandOver": "handing something over",
-                "Inspect": "inspecting",
-                "LookAt": "looking",
-                "NavigateTo": "navigating",
-                "PickUp": "picking up",
-                "Place": "placing",
-                "ResetWM": "resetting my world model",
-                "Say": "speaking",
-                "SendPicture": "sending a picture",
-                "TurnTowardSound": "turning towards a sound"}
+    to_verb = {"AnswerQuestion": "answering a question",
+               "ArmGoal": "moving my arm",
+               "DemoPresentation": "giving a demo",
+               "Find": "finding",
+               "Follow": "following",
+               "Guide": "guiding",
+               "GripperGoal": "moving my gripper",
+               "HandOver": "handing something over",
+               "Inspect": "inspecting",
+               "LookAt": "looking",
+               "NavigateTo": "navigating",
+               "PickUp": "picking up",
+               "Place": "placing",
+               "ResetWM": "resetting my world model",
+               "Say": "speaking",
+               "SendPicture": "sending a picture",
+               "TurnTowardSound": "turning towards a sound"}
     description = to_verb.get(subtask, subtask + "ing")
 
     if prefix:
@@ -145,7 +141,6 @@ class ConversationState(object):
             except KeyError:
                 elem[field] = semantics
 
-
         rospy.loginfo("Updated semantics: {}".format(self._current_semantics))
         return
 
@@ -228,7 +223,8 @@ class ConversationEngine(object):
         rospy.loginfo("_stop(): Cancelling goals, resetting state")
 
         def notify_user(event):
-            self._robot_to_user_pub.publish(random.choice(["State machine takes a long time to abort, you can kill it with 'sudo kill'"]))
+            self._robot_to_user_pub.publish(
+                random.choice(["State machine takes a long time to abort, you can kill it with 'sudo kill'"]))
 
         self._state.aborting(rospy.Duration(20), notify_user)
         self._action_client.cancel_all_async()
@@ -308,9 +304,10 @@ class ConversationEngine(object):
                 self._state.wait_for_robot()
             except (KeyError, IndexError) as e:
                 rospy.logerr("Could not update semantics: {}".format(e))
-                self._robot_to_user_pub.publish(random.choice(["Something went terribly wrong, can we try a new command?",
-                                                               "I didn't understand that, what do you want me to do?",
-                                                               "What would you like me to do? Could you please rephrase you command?"]))
+                self._robot_to_user_pub.publish(
+                    random.choice(["Something went terribly wrong, can we try a new command?",
+                                   "I didn't understand that, what do you want me to do?",
+                                   "What would you like me to do? Could you please rephrase you command?"]))
                 self._stop()
         else:
             example = self._parser.get_random_sentence(self._state.target)
@@ -396,7 +393,8 @@ class ConversationEngine(object):
         rospy.loginfo(feedback.current_subtask)
         self._robot_to_user_pub.publish(describe_current_subtask(feedback.current_subtask))
 
-    def _get_grammar_target(self, missing_field_path):
+    @staticmethod
+    def _get_grammar_target(missing_field_path):
         deepest_field_name = missing_field_path.split('.')[-1]
 
         if 'location' in deepest_field_name:
@@ -404,6 +402,7 @@ class ConversationEngine(object):
         else:
             return "T"
 
-    def _log_invalid_command(self, text):
+    @staticmethod
+    def _log_invalid_command(text):
         with open("invalid_commands.txt", "a") as dump:
-            dump.writelines([text+"\n"])
+            dump.writelines([text + "\n"])
