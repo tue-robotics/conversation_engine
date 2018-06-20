@@ -347,7 +347,7 @@ class ConversationEngine(object):
                                   "Your wish is my command.",
                                   "Do you have an assignment for me?",
                                   "Do you have a command for me?",
-                                  "Please tell me what to do."
+                                  "Please tell me what to do.",
                                   "Anything to do boss?"])
 
         if self.give_examples:
