@@ -176,6 +176,8 @@ class ConversationEngine(object):
     def _handle_user_to_robot(self, text):
         rospy.loginfo("_handle_user_to_robot('{}')".format(text))
 
+        text = sanitize_text(text)
+
         if self._handle_special_commands(text):
             return
 
