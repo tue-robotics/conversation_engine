@@ -415,6 +415,8 @@ class ConversationEngine(object):
             grammar_target = 'NAMED_PERSON'
         elif 'sentence' in deepest_field_name:
             grammar_target = 'SAY_SENTENCE'
+        elif 'object' in deepest_field_name:
+            grammar_target = 'NAMED_OBJECT'
 
         rospy.loginfo("Missing information '{}' must match '{}' in grammar".format(missing_field_path, grammar_target))
         return grammar_target
