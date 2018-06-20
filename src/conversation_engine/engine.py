@@ -300,8 +300,8 @@ class ConversationEngine(object):
             try:
                 rospy.loginfo("Additional_semantics: {}".format(additional_semantics))
                 self._state.update_semantics(sem_dict, self._state.missing_field)
-                self._say_to_user(random.choice(["OK, I can work with that",
-                                                               "Allright, thanks!"]))
+                self._say_to_user(random.choice(["OK, that helps!",
+                                                 "Allright, thanks!"]))
 
                 self._action_client.send_async_task(str(self._state.current_semantics),
                                                     done_cb=self._done_cb,
