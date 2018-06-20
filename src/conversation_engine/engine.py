@@ -400,7 +400,6 @@ class ConversationEngine(object):
         self._latest_feedback = feedback
 
         rospy.loginfo(feedback.current_subtask)
-        self._say_to_user(describe_current_subtask(feedback.current_subtask))
 
     @staticmethod
     def _get_grammar_target(missing_field_path):
