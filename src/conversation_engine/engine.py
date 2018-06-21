@@ -452,6 +452,15 @@ class ConversationEngine(object):
     def _start_wait_for_command(self, grammar, target):
         pass
 
+    def is_text_valid_input(self, text):
+        sanitized = sanitize_text(text)
+        words = sanitized.strip().split(" ")
+        valid = False
+        if self._state.target:
+            valid = self._parser.parse(self._state.target, words, debug=True) != False
+        else:
+            valid = self._parser.parse(self._command_target, words, debug=True) != False
+        return valid
 
 class ConversationEngineUsingTopic(ConversationEngine):
     def __init__(self, robot_name, grammar, command_target):
