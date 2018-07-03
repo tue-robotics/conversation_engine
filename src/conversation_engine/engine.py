@@ -1,16 +1,17 @@
 # System
 import json
 import os
-# ROS
 import random
 from copy import deepcopy
-
-import rospy
 import yaml
+
+# ROS
+import rospy
+from std_msgs.msg import String
+
 # TU/e Robotics
 from action_server import Client, TaskOutcome
 from grammar_parser import cfgparser
-from std_msgs.msg import String
 
 
 def sanitize_text(txt):
