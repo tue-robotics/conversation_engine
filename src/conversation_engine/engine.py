@@ -70,7 +70,28 @@ def describe_current_subtask(subtask, prefix=True):
 
 class ConversationState(object):
     """Encapsulate all conversation state.
-    This makes it impossible to transition to a next state without setting the correct fields"""
+    This makes it impossible to transition to a next state without setting the correct fields
+
+    When a new conversation is started, the ConversationState is IDLE.
+    Then the user can initiate the conversation by supplying text, which then initializes the semantics of an action.
+    The ConversationEngine then sends this to the action_server and we wait for the robot to execute the action or
+    think about why the action cannot be performed yet.
+    When calling the action_server, we must indicate that we are waiting for the robot via the the wait_for_robot() method.
+
+    In the case of missing info, the robot misses some field from the semantics.
+    The ConversationEngine figures out which subtree of the grammar to use to parse the user's eventual input and passes this in the wait_for_user() method.
+    The missing field can, for example, be a location to do something with.
+    This means the grammar should not try to parse the reply to come as a type of drink or as a verb, for example, but as a location.
+    What rule to parse text with is stored in .target
+
+    The ConversationEngine then says something to the user and waits for the user to reply.
+    When this is received, the ConversationEngine reads the grammar target from the ConversationState before it parses the replied text for additional info.
+
+    The current semantics are updated using update_semantics() and the action_server is called again with the now updated semantics.
+    When this happens, the ConversationEngine must call wait_for_robot() again.
+
+    The user can also ask to abort() the conversation to stop.
+    """
     IDLE = "IDLE"
     WAIT_FOR_USER = "WAIT_FOR_USER"  # Waiting for info from user
     WAIT_FOR_ROBOT = "WAIT_FOR_ROBOT"  # Waiting for the action server to reply with success/aborted (missing info or fail)
@@ -86,21 +107,32 @@ class ConversationState(object):
 
     @property
     def state(self):
+        """Part of the conversation we're in"""
         return self._state
 
     @property
     def target(self):
+        """Subtree of the grammar tree to use when parsing text"""
         return self._target
 
     @property
     def missing_field(self):
+        """What field is missing in the current_semantics before the action_server can execute it
+        The user must provide useful information to fill this field."""
         return self._missing_field
 
     @property
     def current_semantics(self):
+        """A dict containing an (incomplete) action description for the action_server"""
         return deepcopy(self._current_semantics)
 
     def wait_for_user(self, target, missing_field):
+        """Indicate that the ConversationEngine is waiting for the user's input.
+        This is to wait for additional info, that must be parsed according to target in order to fill some missing field
+        :param target: name of the grammar rule to parse the user's reply with
+        :type target: str
+        :param missing_field: a 'path' indicating where to insert the additional info from the user into the current_semantics dictionary
+        :type missing_field: str"""
         rospy.loginfo("ConversationState: {old} -> {new}. Target='{t}', missing_field='{mf}'"
                       .format(old=self._state, new=ConversationState.WAIT_FOR_USER,
                               t=target, mf=missing_field))
@@ -109,6 +141,7 @@ class ConversationState(object):
         self._missing_field = missing_field
 
     def wait_for_robot(self):
+        """Indicate that the ConversationEngine is waiting for the robot to either finish (planning) the action"""
         rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.WAIT_FOR_ROBOT))
         self._state = ConversationState.WAIT_FOR_ROBOT
         self._target = None
@@ -129,10 +162,18 @@ class ConversationState(object):
                     oneshot=True)
 
     def initialize_semantics(self, semantics):
+        """Initialize an action description for the action_server. This gets updated as the conversation progresses, via update_semantics()"""
         self._current_semantics = semantics
         rospy.loginfo("Initialized semantics: {}".format(self._current_semantics))
 
     def update_semantics(self, semantics, missing_field_path):
+        """Update the current action description for the action_server
+        The semantics will be filled into current_semantics at the missing_field_path
+        :param semantics: dictionary with additional info
+        :type semantics: dict
+        :param missing_field_path: a 'path' indicating where to insert the additional info from the user into the current_semantics dictionary
+        :type missing_field_path: str"""
+
         # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
         # the missing information path
 
@@ -153,7 +194,39 @@ class ConversationState(object):
 
 
 class ConversationEngine(object):
+    """ConversationEngine provides the bridge between the user and the action_server.
+    It accepts text and parses it to a 'semantics' dictionary that the action_server can interpret.
+
+    The action_server then tries to formulate a plan based on the semantics and either:
+    - starts execution and succeeds or fails
+    - indicates it is missing information.
+    In the case of missing information, the action_server indicates what field of information it is missing.
+
+    Based on that, the ConversationEngine must converse with the user to obtain more information.
+    There is some logic to determine with grammar rules/target to use to parse the additional information with.
+
+    Once the information is obtained, the semantics of the current conversation state are updated
+    and sent to the action_server again, in hope the semantics is now complete enough for execution.
+
+    ConversationEngine is set up as a base class, that leaves the implementation of talking with the user to subclasses.
+    Implement
+    - _say_to_user to say something to the user
+    - user_to_robot_text to accept text from the user
+    """
     def __init__(self, robot_name, grammar, command_target, give_examples=True):
+        """
+        Initialize a new ConversationEngine for the given robot, using some grammar with a command_target.
+        Indicate whether to give examples of thins to say to the user via give_examples
+        :param robot_name: name of the robot to connect with
+        :type robot_name: str
+        :param grammar: string to initialize a CFGParser with see https://github.com/tue-robotics/grammar_parser/
+        :type grammar: str
+        :param grammar: the root of the grammar's parse tree
+        :type grammar: str
+        :param give_examples: Include examples when talking with the user.
+            These are randomly generated from the active part of the grammar
+        :type give_examples: bool
+        """
 
         self._state = ConversationState()
 
@@ -171,9 +244,18 @@ class ConversationEngine(object):
         rospy.logdebug("Started conversation engine")
 
     def user_to_robot_text(self, text):
+        """Accept raw text from the user.
+
+        :param text: what the user typed or said
+        :type text str"""
         self._handle_user_to_robot(text)
 
     def _handle_user_to_robot(self, text):
+        """Start processing text from the user. This handles sanitation of the strings and
+        any special commands that affect the conversation flow rather than the action (like aborting etc)
+        :param text: what the user typed or said
+        :type text str
+        """
         rospy.loginfo("_handle_user_to_robot('{}')".format(text))
 
         text = sanitize_text(text)
@@ -328,6 +410,7 @@ class ConversationEngine(object):
             self._state.wait_for_user(missing_field=self._state.missing_field, target=self._state.target)
 
     def _handle_user_while_waiting_for_robot(self, text):
+        """Talk with the user while the robot is busy doing stuff"""
         sentence = random.choice(["I'm busy, give me a sec.",
                                   "Hold on, "])
 
@@ -337,6 +420,7 @@ class ConversationEngine(object):
         self._say_to_user(sentence)
 
     def _handle_user_while_aborting(self, text):
+        """Talk with the user while the robot is busy aborting the action"""
         sentence = random.choice(["Yes, I'll stop ",
                                   "I'm quitting "])
 
@@ -361,6 +445,9 @@ class ConversationEngine(object):
         self._say_to_user(sentence)
 
     def _done_cb(self, task_outcome):
+        """The action_server's action is done, which can mean the action is finished (successfully or failed) or
+        needs additional info. This last option is handled by _on_request_missing_information and
+        the other cases by a starting a new conversation"""
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
         assert isinstance(task_outcome, TaskOutcome)
 
@@ -406,6 +493,7 @@ class ConversationEngine(object):
 
     @staticmethod
     def _get_grammar_target(missing_field_path):
+        """Determine which grammar target to use when a particular field of info is missing."""
         deepest_field_name = missing_field_path.split('.')[-1]
 
         grammar_target = "T"
