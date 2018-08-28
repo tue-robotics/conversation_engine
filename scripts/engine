@@ -15,7 +15,7 @@ def main():
     # Which grammar target to use for what field of missing information?
     grammar_target_for_missing_info = rospy.get_param("~grammar_target_for_missing_info", {})
 
-    grammar_target_for_missing_info = {
+    default_grammar_target_for_missing_info = {
         'location': 'ROOM_OR_LOCATION',
         'entity': 'ROOM_OR_LOCATION',
         'target': 'NAMED_PERSON',
@@ -30,12 +30,17 @@ def main():
     if grammar and command_target:
         rospy.loginfo("command_target: '{}'".format(command_target))
         rospy.loginfo("grammar: '{}'".format(grammar[:10]))
+        rospy.loginfo("grammar_target_for_missing_info: '{}'".format(grammar_target_for_missing_info))
     else:
-        if grammar and not command_target:
-            rospy.logfatal("A grammar was specified without a command_target")
-            return
-        elif not grammar and command_target:
-            rospy.logfatal("A command_target was specified without a grammar")
+        if not command_target:
+            rospy.logfatal("No command_target specified. This specifies the root of the grammar tree")
+        if not grammar:
+            rospy.logfatal("No grammar specified. This defined the grammar tree")
+        if not grammar_target_for_missing_info:
+            rospy.logfatal("No grammar_target_for_missing_info specified. "
+                           "This mapping is used to map missing info fields to "
+                           "grammar targets that can fill in that field")
+        if not command_target or not grammar or not grammar_target_for_missing_info:
             return
 
     if challenge:
@@ -46,6 +51,12 @@ def main():
         except Exception as e:
             rospy.logfatal("Failed to load grammar from challenge: %s", e)
             return
+
+        try:
+            grammar_target_for_missing_info = knowledge.grammar_target_for_missing_info
+        except AttributeError:
+            rospy.logwarn("Using default grammar_target_for_missing_info. Should be specified in challenge knowledge")
+            grammar_target_for_missing_info = default_grammar_target_for_missing_info
 
         command_target = knowledge.grammar_target
 
