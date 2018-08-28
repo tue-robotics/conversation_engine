@@ -179,19 +179,22 @@ class ConversationState(object):
         # the missing information path
 
         # fill semantics in existing semantics
-        path_list = missing_field_path.split('.')
-        action_index = int(path_list[0].strip('actions[').rstrip(']'))
-        fields = path_list[1:]
+        try:
+            path_list = missing_field_path.split('.')
+            action_index = int(path_list[0].strip('actions[').rstrip(']'))
+            fields = path_list[1:]
 
-        elem = self._current_semantics['actions'][action_index]
-        for field in fields:
-            try:
-                elem = elem[field]
-            except KeyError:
-                elem[field] = semantics
+            elem = self._current_semantics['actions'][action_index]
+            for field in fields:
+                try:
+                    elem = elem[field]
+                except KeyError:
+                    elem[field] = semantics
 
-        rospy.loginfo("Updated semantics: {}".format(self._current_semantics))
-        return
+            rospy.loginfo("Updated semantics: {}".format(self._current_semantics))
+            return
+        except ValueError as ve:
+            rospy.logerr("Could not parse missing_field_path '{}' to a path to fill".format(missing_field_path))
 
 
 class ConversationEngine(object):
