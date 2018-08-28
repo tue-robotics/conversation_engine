@@ -217,7 +217,7 @@ class ConversationEngine(object):
     - _say_to_user to say something to the user
     - user_to_robot_text to accept text from the user
     """
-    def __init__(self, robot_name, grammar, command_target, give_examples=True):
+    def __init__(self, robot_name, grammar, command_target, grammar_target_for_missing_info, give_examples=True):
         """
         Initialize a new ConversationEngine for the given robot, using some grammar with a command_target.
         Indicate whether to give examples of thins to say to the user via give_examples
@@ -240,6 +240,7 @@ class ConversationEngine(object):
         self._robot_name = robot_name
         self._grammar = grammar
         self._command_target = command_target
+        self._grammar_target_for_missing_info = grammar_target_for_missing_info
 
         self.give_examples = give_examples
 
@@ -495,23 +496,16 @@ class ConversationEngine(object):
 
         rospy.loginfo(feedback.current_subtask)
 
-    @staticmethod
-    def _get_grammar_target(missing_field_path):
+    def _get_grammar_target(self, missing_field_path):
         """Determine which grammar target to use when a particular field of info is missing."""
         deepest_field_name = missing_field_path.split('.')[-1]
 
         grammar_target = "T"
 
-        if 'location' in deepest_field_name:
-            grammar_target = 'ROOM_OR_LOCATION'
-        elif 'entity' in deepest_field_name:
-            grammar_target = 'ROOM_OR_LOCATION'
-        elif 'target' in deepest_field_name:
-            grammar_target = 'NAMED_PERSON'
-        elif 'sentence' in deepest_field_name:
-            grammar_target = 'SAY_SENTENCE'
-        elif 'object' in deepest_field_name:
-            grammar_target = 'NAMED_OBJECT'
+        for missing, target in self._grammar_target_for_missing_info.iteritems():
+            if missing in deepest_field_name:
+                grammar_target = target
+                break
 
         rospy.loginfo("Missing information '{}' must match '{}' in grammar".format(missing_field_path, grammar_target))
         return grammar_target
@@ -555,8 +549,8 @@ class ConversationEngine(object):
         return valid
 
 class ConversationEngineUsingTopic(ConversationEngine):
-    def __init__(self, robot_name, grammar, command_target):
-        super(ConversationEngineUsingTopic, self).__init__(robot_name, grammar, command_target)
+    def __init__(self, *args, **kwargs):
+        super(ConversationEngineUsingTopic, self).__init__(*args, **kwargs)
 
         self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self.user_to_robot_msg)
         self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)

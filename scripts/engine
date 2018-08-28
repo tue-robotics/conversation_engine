@@ -12,6 +12,17 @@ def main():
     challenge = rospy.get_param("~challenge",
                                 None)  # Challenge to load grammar and command_target from if `grammar` and `command_target` are empty
 
+    # Which grammar target to use for what field of missing information?
+    grammar_target_for_missing_info = rospy.get_param("~grammar_target_for_missing_info", {})
+
+    grammar_target_for_missing_info = {
+        'location': 'ROOM_OR_LOCATION',
+        'entity': 'ROOM_OR_LOCATION',
+        'target': 'NAMED_PERSON',
+        'sentence': 'SAY_SENTENCE',
+        'object': 'NAMED_OBJECT',
+    }
+
     if grammar and command_target and challenge:
         rospy.logfatal("Specify either `grammar` and `command_target` or only `challenge`, not all three")
         return
@@ -39,7 +50,10 @@ def main():
         command_target = knowledge.grammar_target
 
     rospy.loginfo("Starting conversation engine with robot {}".format(robot))
-    ConversationEngineUsingTopic(robot, grammar, command_target=command_target)
+    ConversationEngineUsingTopic(robot,
+                                 grammar,
+                                 command_target=command_target,
+                                 grammar_target_for_missing_info=grammar_target_for_missing_info)
 
     rospy.loginfo("Conversation engine started")
     rospy.spin()
