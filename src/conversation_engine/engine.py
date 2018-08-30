@@ -432,12 +432,16 @@ class ConversationEngine(object):
         self._say_to_user(sentence)
 
     def _say_ready_for_command(self):
-        sentence = random.choice(["I'm ready for a command.",
-                                  "Your wish is my command.",
-                                  "Do you have an assignment for me?",
-                                  "Do you have a command for me?",
-                                  "Please tell me what to do.",
-                                  "Anything to do boss?"])
+        sentence = random.choice(["Can I do anything else for you?",
+				  "Can I assist you in any way?",
+				  "Would you like me to do anything else for you?",
+#				  "I'm ready for a command.",
+#                                  "Your wish is my command.",
+#                                  "Do you have an assignment for me?",
+#                                  "Do you have a command for me?",
+#                                  "Please tell me what to do.",
+#                                  "Anything to do boss?"
+				  ])
 
         if self.give_examples:
             example = self._parser.get_random_sentence(self._command_target)
