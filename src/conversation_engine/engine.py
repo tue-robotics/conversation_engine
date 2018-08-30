@@ -18,7 +18,7 @@ def sanitize_text(txt):
     stripped = "".join(c for c in txt if c not in """!.,:'?`~@#$%^&*()+=-/\></*-+""")
     lowered = stripped.lower()
 
-    mapping = {"dining table": "dining_table",
+    mapping = {"dinner table": "dinner_table",
                "display case": "display_case",
                "storage shelf": "storage_shelf",
                "couch table": "couch_table",
@@ -214,7 +214,7 @@ class ConversationEngine(object):
     - _say_to_user to say something to the user
     - user_to_robot_text to accept text from the user
     """
-    def __init__(self, robot_name, grammar, command_target, give_examples=True):
+    def __init__(self, robot_name, grammar, command_target, give_examples=False):
         """
         Initialize a new ConversationEngine for the given robot, using some grammar with a command_target.
         Indicate whether to give examples of thins to say to the user via give_examples
@@ -358,14 +358,15 @@ class ConversationEngine(object):
             if 'sandwich' in text:
                 result_sentence = "Try 'sudo {}'.".format(text)
             else:
-                result_sentence = random.choice(["You're not making sense.",
-                                                 "Don't give me this shit.",
-                                                 "Tell me something useful.",
-                                                 "This is useless input. Thanks, but no thanks.",
-                                                 "Make sense to me, fool!",
-                                                 "Talk to the gripper, the PC is too good for you.",
-                                                 "Something went terribly wrong.",
-                                                 "Would your mother in law understand?",
+                result_sentence = random.choice(["I don't understand, please try again",
+						#"You're not making sense.",
+                                                # "Don't give me this shit.",
+                                                # "Tell me something useful.",
+                                                # "This is useless input. Thanks, but no thanks.",
+                                                # "Make sense to me, fool!",
+                                                # "Talk to the gripper, the PC is too good for you.",
+                                                # "Something went terribly wrong.",
+                                                # "Would your mother in law understand?",
                                                  "Try 'sudo {}'.".format(text)])
             self._say_to_user(result_sentence)
             self._start_new_conversation()
