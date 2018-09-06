@@ -19,6 +19,9 @@ def sanitize_text(txt):
     lowered = stripped.lower()
 
     mapping = {"dinner table": "dinner_table",
+               "tray table": "tray_table",
+               "coke zero": "coke_zero",
+               "fanta bottle": "fanta_bottle",
                "display case": "display_case",
                "storage shelf": "storage_shelf",
                "couch table": "couch_table",
@@ -28,13 +31,13 @@ def sanitize_text(txt):
                "side table": "side_table",
                "living room": "living_room",
                "dining room": "dining_room",
-               "storage table":"storage_table",
-               "end table":"end_table",
-               "chocolate drink":"chocolate_drink",
-               "grape juice":"grape_juice",
-               "orange juice":"orange_juice",
-               "potato chips":"potato_chips",
-               "cleaning stuff":"cleaning_stuff"}
+               "storage table": "storage_table",
+               "end table": "end_table",
+               "chocolate drink": "chocolate_drink",
+               "grape juice": "grape_juice",
+               "orange juice": "orange_juice",
+               "potato chips": "potato_chips",
+               "cleaning stuff": "cleaning_stuff"}
 
     for key, value in mapping.iteritems():
         lowered = lowered.replace(key, value)
