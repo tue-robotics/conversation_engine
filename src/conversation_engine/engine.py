@@ -288,7 +288,7 @@ class ConversationEngine(object):
             rospy.loginfo("_handle_special_commands('{}'):".format(text))
             if self._state.state == ConversationState.IDLE:
                 self._say_to_user(random.choice(["I'm not busy",
-                                                               "I'm not doing anything"]))
+                                                 "I'm not doing anything"]))
                 self._say_ready_for_command()
             elif self._state.state == ConversationState.WAIT_FOR_ROBOT:
                 self._stop()
@@ -326,8 +326,8 @@ class ConversationEngine(object):
         self._latest_feedback = None
 
         self._say_to_user(random.choice(["Stop! Hammer time",
-                                                       "Oops, sorry",
-                                                       "OK, I'll stop"]))
+                                         "Oops, sorry",
+                                         "OK, I'll stop"]))
 
     def _start_new_conversation(self):
         self._state = ConversationState()
@@ -361,15 +361,15 @@ class ConversationEngine(object):
             if 'sandwich' in text:
                 result_sentence = "Try 'sudo {}'.".format(text)
             else:
-                result_sentence = random.choice(["I don't understand, please try again",
-						#"You're not making sense.",
-                                                # "Don't give me this shit.",
-                                                # "Tell me something useful.",
-                                                # "This is useless input. Thanks, but no thanks.",
-                                                # "Make sense to me, fool!",
-                                                # "Talk to the gripper, the PC is too good for you.",
-                                                # "Something went terribly wrong.",
-                                                # "Would your mother in law understand?",
+                result_sentence = random.choice(["I don't understand, please try something else.",
+                                                 # "You're not making sense.",
+                                                 #  "Don't give me this shit.",
+                                                 #  "Tell me something useful.",
+                                                 #  "This is useless input. Thanks, but no thanks.",
+                                                 #  "Make sense to me, fool!",
+                                                 #  "Talk to the gripper, the PC is too good for you.",
+                                                 #  "Something went terribly wrong.",
+                                                 #  "Would your mother in law understand?",
                                                  "Try 'sudo {}'.".format(text)])
             self._say_to_user(result_sentence)
             self._start_new_conversation()
@@ -436,15 +436,15 @@ class ConversationEngine(object):
 
     def _say_ready_for_command(self):
         sentence = random.choice(["Can I do anything else for you?",
-				  "Can I assist you in any way?",
-				  "Would you like me to do anything else for you?",
-#				  "I'm ready for a command.",
-#                                  "Your wish is my command.",
-#                                  "Do you have an assignment for me?",
-#                                  "Do you have a command for me?",
-#                                  "Please tell me what to do.",
-#                                  "Anything to do boss?"
-				  ])
+                                  "Can I assist you in any way?",
+                                  "Would you like me to do anything else for you?",
+                                  # "I'm ready for a command.",
+                                  # "Your wish is my command.",
+                                  # "Do you have an assignment for me?",
+                                  # "Do you have a command for me?",
+                                  # "Please tell me what to do.",
+                                  # "Anything to do boss?"
+                                  ])
 
         if self.give_examples:
             example = self._parser.get_random_sentence(self._command_target)
@@ -558,6 +558,7 @@ class ConversationEngine(object):
         else:
             valid = self._parser.parse(self._command_target, words, debug=True) != False
         return valid
+
 
 class ConversationEngineUsingTopic(ConversationEngine):
     def __init__(self, robot_name, grammar, command_target):
