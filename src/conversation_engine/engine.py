@@ -28,13 +28,13 @@ def sanitize_text(txt):
                "side table": "side_table",
                "living room": "living_room",
                "dining room": "dining_room",
-               "storage table":"storage_table",
-               "end table":"end_table",
-               "chocolate drink":"chocolate_drink",
-               "grape juice":"grape_juice",
-               "orange juice":"orange_juice",
-               "potato chips":"potato_chips",
-               "cleaning stuff":"cleaning_stuff"}
+               "storage table": "storage_table",
+               "end table": "end_table",
+               "chocolate drink": "chocolate_drink",
+               "grape juice": "grape_juice",
+               "orange juice": "orange_juice",
+               "potato chips": "potato_chips",
+               "cleaning stuff": "cleaning_stuff"}
 
     for key, value in mapping.iteritems():
         lowered = lowered.replace(key, value)
@@ -214,6 +214,7 @@ class ConversationEngine(object):
     - _say_to_user to say something to the user
     - user_to_robot_text to accept text from the user
     """
+
     def __init__(self, robot_name, grammar, command_target, give_examples=True):
         """
         Initialize a new ConversationEngine for the given robot, using some grammar with a command_target.
@@ -285,13 +286,13 @@ class ConversationEngine(object):
             rospy.loginfo("_handle_special_commands('{}'):".format(text))
             if self._state.state == ConversationState.IDLE:
                 self._say_to_user(random.choice(["I'm not busy",
-                                                               "I'm not doing anything"]))
+                                                 "I'm not doing anything"]))
                 self._say_ready_for_command()
             elif self._state.state == ConversationState.WAIT_FOR_ROBOT:
                 self._stop()
             elif self._state.state == ConversationState.WAIT_FOR_USER:
                 self._say_to_user(random.choice(["I'm waiting for you, there's nothing to stop",
-                                                               "I can't stop, you stop!"]))
+                                                 "I can't stop, you stop!"]))
 
                 self._start_new_conversation()
             elif self._state.state == ConversationState.ABORTING:
@@ -307,7 +308,9 @@ class ConversationEngine(object):
             self._say_to_user(random.choice(["Woah, sorry dude for not stopping fast enough!"]))
             os.system("rosnode kill /state_machine")
             self._say_to_user(random.choice(["Killed the action_server, pray for resurrection"]))
-            self._start_new_conversation()  # This is assuming the state machine is back online when a command is received
+
+            # This is assuming the state machine is back online when a command is received
+            self._start_new_conversation()
 
             return True
 
@@ -323,8 +326,8 @@ class ConversationEngine(object):
         self._latest_feedback = None
 
         self._say_to_user(random.choice(["Stop! Hammer time",
-                                                       "Oops, sorry",
-                                                       "OK, I'll stop"]))
+                                         "Oops, sorry",
+                                         "OK, I'll stop"]))
 
     def _start_new_conversation(self):
         self._state = ConversationState()
@@ -519,7 +522,9 @@ class ConversationEngine(object):
             dump.writelines([text + "\n"])
 
     def _say_to_user(self, message):
-        raise NotImplementedError("How to say something to the user must be implemented in the subclass. Signature: ```_say_to_user(message: str)```")
+        raise NotImplementedError(
+            "How to say something to the user must be implemented in the subclass. "
+            "Signature: ```_say_to_user(message: str)```")
 
     def _on_task_successful(self, message):
         self._say_to_user(message)
@@ -551,6 +556,7 @@ class ConversationEngine(object):
             valid = self._parser.parse(self._command_target, words, debug=True) != False
         return valid
 
+
 class ConversationEngineUsingTopic(ConversationEngine):
     def __init__(self, robot_name, grammar, command_target):
         super(ConversationEngineUsingTopic, self).__init__(robot_name, grammar, command_target)
@@ -563,4 +569,3 @@ class ConversationEngineUsingTopic(ConversationEngine):
 
     def _say_to_user(self, message):
         self._robot_to_user_pub.publish(message)
-

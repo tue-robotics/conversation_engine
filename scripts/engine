@@ -4,13 +4,12 @@ import rospy
 from robocup_knowledge import knowledge_loader
 from conversation_engine import ConversationEngineUsingTopic
 
-
 def main():
     robot = rospy.get_param("~robot")  # Robot name to use as a namespace for the action client
     grammar = rospy.get_param("~grammar", None)  # String with the grammar to be used
     command_target = rospy.get_param("~command_target", None)  # Node of the grammar tree to parse up to.
-    challenge = rospy.get_param("~challenge",
-                                None)  # Challenge to load grammar and command_target from if `grammar` and `command_target` are empty
+    # Challenge to load grammar and command_target from if `grammar` and `command_target` are empty
+    challenge = rospy.get_param("~challenge", None)
 
     if grammar and command_target and challenge:
         rospy.logfatal("Specify either `grammar` and `command_target` or only `challenge`, not all three")
