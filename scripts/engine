@@ -1,48 +1,50 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 
-# System
-import argparse
-
-# ROS
 import rospy
 from robocup_knowledge import knowledge_loader
-
-# Conversation engine
-from conversation_engine import ConversationEngine
+from conversation_engine import ConversationEngineUsingTopic
 
 
-if __name__ == "__main__":
-    rospy.init_node("conversation_engine")
-
-    robot = rospy.get_param("~robot", None)  # Robot name to use as a namespace for the action client
+def main():
+    robot = rospy.get_param("~robot")  # Robot name to use as a namespace for the action client
     grammar = rospy.get_param("~grammar", None)  # String with the grammar to be used
     command_target = rospy.get_param("~command_target", None)  # Node of the grammar tree to parse up to.
-    challenge = rospy.get_param("~challenge", None)  # Challenge to load grammar and command_target from if `grammar` and `command_target` are empty
+    # Challenge to load grammar and command_target from if `grammar` and `command_target` are empty
+    challenge = rospy.get_param("~challenge", None)
 
     if grammar and command_target and challenge:
-        rospy.logerr("Specify either `grammar` and `command_target` or only `challenge`, not all three")
-        exit(-1)
+        rospy.logfatal("Specify either `grammar` and `command_target` or only `challenge`, not all three")
+        return
 
     if grammar and command_target:
         rospy.loginfo("command_target: '{}'".format(command_target))
         rospy.loginfo("grammar: '{}'".format(grammar[:10]))
     else:
         if grammar and not command_target:
-            rospy.logerr("A grammar was specified without a command_target")
-            exit(-1)
+            rospy.logfatal("A grammar was specified without a command_target")
+            return
         elif not grammar and command_target:
-            rospy.logerr("A command_target was specified without a grammar")
-            exit(-1)
+            rospy.logfatal("A command_target was specified without a grammar")
+            return
 
     if challenge:
         rospy.loginfo("Loading grammar and target from challenge '{}'".format(challenge))
         knowledge = knowledge_loader.load_knowledge(challenge)
-        grammar = knowledge.grammar
+        try:
+            grammar = knowledge.grammar
+        except Exception as e:
+            rospy.logfatal("Failed to load grammar from challenge: %s", e)
+            return
+
         command_target = knowledge.grammar_target
 
-
     rospy.loginfo("Starting conversation engine with robot {}".format(robot))
-    conv_engine = ConversationEngine(robot, grammar, command_target=command_target)
+    _ = ConversationEngineUsingTopic(robot, grammar, command_target=command_target)
 
     rospy.loginfo("Conversation engine started")
     rospy.spin()
+
+
+if __name__ == "__main__":
+    rospy.init_node("conversation_engine")
+    main()

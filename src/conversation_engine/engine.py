@@ -1,36 +1,40 @@
 # System
+import json
 import os
+import random
 from copy import deepcopy
+import yaml
 
 # ROS
-import actionlib
-import random
 import rospy
-import json
-import yaml
+from std_msgs.msg import String
 
 # TU/e Robotics
 from action_server import Client, TaskOutcome
 from grammar_parser import cfgparser
-from std_msgs.msg import String
 
-# Conversation engine
-from conversation_engine.msg import ConverseAction, ConverseResult, ConverseFeedback
 
 def sanitize_text(txt):
     stripped = "".join(c for c in txt if c not in """!.,:'?`~@#$%^&*()+=-/\></*-+""")
     lowered = stripped.lower()
 
-    mapping = { "dining table": "dining_table",
-                "display case": "display_case",
-                "storage shelf": "storage_shelf",
-                "couch table": "couch_table",
-                "tv table": "tv_table",
-                "kitchen table": "kitchen_table",
-                "kitchen cabinet": "kitchen_cabinet",
-                "side table": "side_table",
-                "living room": "living_room",
-                "dining room": "dining_room"}
+    mapping = {"dining table": "dining_table",
+               "display case": "display_case",
+               "storage shelf": "storage_shelf",
+               "couch table": "couch_table",
+               "tv table": "tv_table",
+               "kitchen table": "kitchen_table",
+               "kitchen cabinet": "kitchen_cabinet",
+               "side table": "side_table",
+               "living room": "living_room",
+               "dining room": "dining_room",
+               "storage table": "storage_table",
+               "end table": "end_table",
+               "chocolate drink": "chocolate_drink",
+               "grape juice": "grape_juice",
+               "orange juice": "orange_juice",
+               "potato chips": "potato_chips",
+               "cleaning stuff": "cleaning_stuff"}
 
     for key, value in mapping.iteritems():
         lowered = lowered.replace(key, value)
@@ -40,23 +44,23 @@ def sanitize_text(txt):
 
 def describe_current_subtask(subtask, prefix=True):
     """Make a 'natural' language description of subtask name"""
-    to_verb = { "AnswerQuestion": "answering a question",
-                "ArmGoal": "moving my arm",
-                "DemoPresentation": "giving a demo",
-                "Find": "finding",
-                "Follow": "following",
-                "Guide": "guiding",
-                "GripperGoal": "moving my gripper",
-                "HandOver": "handing something over",
-                "Inspect": "inspecting",
-                "LookAt": "looking",
-                "NavigateTo": "navigating",
-                "PickUp": "picking up",
-                "Place": "placing",
-                "ResetWM": "resetting my world model",
-                "Say": "speaking",
-                "SendPicture": "sending a picture",
-                "TurnTowardSound": "turning towards a sound"}
+    to_verb = {"AnswerQuestion": "answering a question",
+               "ArmGoal": "moving my arm",
+               "DemoPresentation": "giving a demo",
+               "Find": "finding",
+               "Follow": "following",
+               "Guide": "guiding",
+               "GripperGoal": "moving my gripper",
+               "HandOver": "handing something over",
+               "Inspect": "inspecting",
+               "LookAt": "looking",
+               "NavigateTo": "navigating",
+               "PickUp": "picking up",
+               "Place": "placing",
+               "ResetWM": "resetting my world model",
+               "Say": "speaking",
+               "SendPicture": "sending a picture",
+               "TurnTowardSound": "turning towards a sound"}
     description = to_verb.get(subtask, subtask + "ing")
 
     if prefix:
@@ -67,7 +71,28 @@ def describe_current_subtask(subtask, prefix=True):
 
 class ConversationState(object):
     """Encapsulate all conversation state.
-    This makes it impossible to transition to a next state without setting the correct fields"""
+    This makes it impossible to transition to a next state without setting the correct fields
+
+    When a new conversation is started, the ConversationState is IDLE.
+    Then the user can initiate the conversation by supplying text, which then initializes the semantics of an action.
+    The ConversationEngine then sends this to the action_server and we wait for the robot to execute the action or
+    think about why the action cannot be performed yet.
+    When calling the action_server, we must indicate that we are waiting for the robot via the the wait_for_robot() method.
+
+    In the case of missing info, the robot misses some field from the semantics.
+    The ConversationEngine figures out which subtree of the grammar to use to parse the user's eventual input and passes this in the wait_for_user() method.
+    The missing field can, for example, be a location to do something with.
+    This means the grammar should not try to parse the reply to come as a type of drink or as a verb, for example, but as a location.
+    What rule to parse text with is stored in .target
+
+    The ConversationEngine then says something to the user and waits for the user to reply.
+    When this is received, the ConversationEngine reads the grammar target from the ConversationState before it parses the replied text for additional info.
+
+    The current semantics are updated using update_semantics() and the action_server is called again with the now updated semantics.
+    When this happens, the ConversationEngine must call wait_for_robot() again.
+
+    The user can also ask to abort() the conversation to stop.
+    """
     IDLE = "IDLE"
     WAIT_FOR_USER = "WAIT_FOR_USER"  # Waiting for info from user
     WAIT_FOR_ROBOT = "WAIT_FOR_ROBOT"  # Waiting for the action server to reply with success/aborted (missing info or fail)
@@ -83,21 +108,32 @@ class ConversationState(object):
 
     @property
     def state(self):
+        """Part of the conversation we're in"""
         return self._state
 
     @property
     def target(self):
+        """Subtree of the grammar tree to use when parsing text"""
         return self._target
 
     @property
     def missing_field(self):
+        """What field is missing in the current_semantics before the action_server can execute it
+        The user must provide useful information to fill this field."""
         return self._missing_field
 
     @property
     def current_semantics(self):
+        """A dict containing an (incomplete) action description for the action_server"""
         return deepcopy(self._current_semantics)
 
     def wait_for_user(self, target, missing_field):
+        """Indicate that the ConversationEngine is waiting for the user's input.
+        This is to wait for additional info, that must be parsed according to target in order to fill some missing field
+        :param target: name of the grammar rule to parse the user's reply with
+        :type target: str
+        :param missing_field: a 'path' indicating where to insert the additional info from the user into the current_semantics dictionary
+        :type missing_field: str"""
         rospy.loginfo("ConversationState: {old} -> {new}. Target='{t}', missing_field='{mf}'"
                       .format(old=self._state, new=ConversationState.WAIT_FOR_USER,
                               t=target, mf=missing_field))
@@ -106,6 +142,7 @@ class ConversationState(object):
         self._missing_field = missing_field
 
     def wait_for_robot(self):
+        """Indicate that the ConversationEngine is waiting for the robot to either finish (planning) the action"""
         rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.WAIT_FOR_ROBOT))
         self._state = ConversationState.WAIT_FOR_ROBOT
         self._target = None
@@ -126,10 +163,18 @@ class ConversationState(object):
                     oneshot=True)
 
     def initialize_semantics(self, semantics):
+        """Initialize an action description for the action_server. This gets updated as the conversation progresses, via update_semantics()"""
         self._current_semantics = semantics
         rospy.loginfo("Initialized semantics: {}".format(self._current_semantics))
 
     def update_semantics(self, semantics, missing_field_path):
+        """Update the current action description for the action_server
+        The semantics will be filled into current_semantics at the missing_field_path
+        :param semantics: dictionary with additional info
+        :type semantics: dict
+        :param missing_field_path: a 'path' indicating where to insert the additional info from the user into the current_semantics dictionary
+        :type missing_field_path: str"""
+
         # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
         # the missing information path
 
@@ -145,13 +190,45 @@ class ConversationState(object):
             except KeyError:
                 elem[field] = semantics
 
-
         rospy.loginfo("Updated semantics: {}".format(self._current_semantics))
         return
 
 
 class ConversationEngine(object):
-    def __init__(self, robot_name, grammar, command_target):
+    """ConversationEngine provides the bridge between the user and the action_server.
+    It accepts text and parses it to a 'semantics' dictionary that the action_server can interpret.
+
+    The action_server then tries to formulate a plan based on the semantics and either:
+    - starts execution and succeeds or fails
+    - indicates it is missing information.
+    In the case of missing information, the action_server indicates what field of information it is missing.
+
+    Based on that, the ConversationEngine must converse with the user to obtain more information.
+    There is some logic to determine with grammar rules/target to use to parse the additional information with.
+
+    Once the information is obtained, the semantics of the current conversation state are updated
+    and sent to the action_server again, in hope the semantics is now complete enough for execution.
+
+    ConversationEngine is set up as a base class, that leaves the implementation of talking with the user to subclasses.
+    Implement
+    - _say_to_user to say something to the user
+    - user_to_robot_text to accept text from the user
+    """
+
+    def __init__(self, robot_name, grammar, command_target, give_examples=True):
+        """
+        Initialize a new ConversationEngine for the given robot, using some grammar with a command_target.
+        Indicate whether to give examples of thins to say to the user via give_examples
+        :param robot_name: name of the robot to connect with
+        :type robot_name: str
+        :param grammar: string to initialize a CFGParser with see https://github.com/tue-robotics/grammar_parser/
+        :type grammar: str
+        :param grammar: the root of the grammar's parse tree
+        :type grammar: str
+        :param give_examples: Include examples when talking with the user.
+            These are randomly generated from the active part of the grammar
+        :type give_examples: bool
+        """
 
         self._state = ConversationState()
 
@@ -162,17 +239,28 @@ class ConversationEngine(object):
         self._grammar = grammar
         self._command_target = command_target
 
-        self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self._handle_user_to_robot)
-        self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)
+        self.give_examples = give_examples
 
         self._latest_feedback = None
 
         rospy.logdebug("Started conversation engine")
 
-    def _handle_user_to_robot(self, msg):
-        rospy.loginfo("_handle_user_to_robot('{}')".format(msg))
+    def user_to_robot_text(self, text):
+        """Accept raw text from the user.
 
-        text = sanitize_text(msg.data)
+        :param text: what the user typed or said
+        :type text str"""
+        self._handle_user_to_robot(text)
+
+    def _handle_user_to_robot(self, text):
+        """Start processing text from the user. This handles sanitation of the strings and
+        any special commands that affect the conversation flow rather than the action (like aborting etc)
+        :param text: what the user typed or said
+        :type text str
+        """
+        rospy.loginfo("_handle_user_to_robot('{}')".format(text))
+
+        text = sanitize_text(text)
 
         if self._handle_special_commands(text):
             return
@@ -197,18 +285,18 @@ class ConversationEngine(object):
         if any([word for word in stop_words if word in text]):
             rospy.loginfo("_handle_special_commands('{}'):".format(text))
             if self._state.state == ConversationState.IDLE:
-                self._robot_to_user_pub.publish(random.choice(["I'm not busy",
-                                                               "I'm not doing anything"]))
+                self._say_to_user(random.choice(["I'm not busy",
+                                                 "I'm not doing anything"]))
                 self._say_ready_for_command()
             elif self._state.state == ConversationState.WAIT_FOR_ROBOT:
                 self._stop()
             elif self._state.state == ConversationState.WAIT_FOR_USER:
-                self._robot_to_user_pub.publish(random.choice(["I'm waiting for you, there's nothing to stop",
-                                                               "I can't stop, you stop!"]))
+                self._say_to_user(random.choice(["I'm waiting for you, there's nothing to stop",
+                                                 "I can't stop, you stop!"]))
 
                 self._start_new_conversation()
             elif self._state.state == ConversationState.ABORTING:
-                self._robot_to_user_pub.publish(random.choice(["I'm already stopping, gimme some time!"]))
+                self._say_to_user(random.choice(["I'm already stopping, gimme some time!"]))
             return True
 
         kill_words = ["sudo kill"]
@@ -217,10 +305,12 @@ class ConversationEngine(object):
 
             self._action_client.cancel_all_async()
 
-            self._robot_to_user_pub.publish(random.choice(["Woah, sorry dude for not stopping fast enough!"]))
+            self._say_to_user(random.choice(["Woah, sorry dude for not stopping fast enough!"]))
             os.system("rosnode kill /state_machine")
-            self._robot_to_user_pub.publish(random.choice(["Killed the action_server, pray for resurrection"]))
-            self._start_new_conversation()  # This is assuming the state machine is back online when a command is received
+            self._say_to_user(random.choice(["Killed the action_server, pray for resurrection"]))
+
+            # This is assuming the state machine is back online when a command is received
+            self._start_new_conversation()
 
             return True
 
@@ -228,20 +318,22 @@ class ConversationEngine(object):
         rospy.loginfo("_stop(): Cancelling goals, resetting state")
 
         def notify_user(event):
-            self._robot_to_user_pub.publish(random.choice(["State machine takes a long time to abort, you can kill it with 'sudo kill'"]))
+            self._say_to_user(
+                random.choice(["State machine takes a long time to abort, you can kill it with 'sudo kill'"]))
 
         self._state.aborting(rospy.Duration(20), notify_user)
         self._action_client.cancel_all_async()
         self._latest_feedback = None
 
-        self._robot_to_user_pub.publish(random.choice(["Stop! Hammer time",
-                                                       "Oops, sorry",
-                                                       "OK, I'll stop"]))
+        self._say_to_user(random.choice(["Stop! Hammer time",
+                                         "Oops, sorry",
+                                         "OK, I'll stop"]))
 
     def _start_new_conversation(self):
         self._state = ConversationState()
         self._latest_feedback = None
         self._say_ready_for_command()  # This is assuming the state machine is back online when a command is received
+        self._start_wait_for_command(self._grammar, self._command_target)
 
     def _handle_command(self, text):
         """Parse text into goal semantics, send to action_server"""
@@ -278,7 +370,7 @@ class ConversationEngine(object):
                                                  "Something went terribly wrong.",
                                                  "Would your mother in law understand?",
                                                  "Try 'sudo {}'.".format(text)])
-            self._robot_to_user_pub.publish(result_sentence)
+            self._say_to_user(result_sentence)
             self._start_new_conversation()
 
     def _handle_additional_info(self, text):
@@ -297,8 +389,8 @@ class ConversationEngine(object):
             try:
                 rospy.loginfo("Additional_semantics: {}".format(additional_semantics))
                 self._state.update_semantics(sem_dict, self._state.missing_field)
-                self._robot_to_user_pub.publish(random.choice(["OK, I can work with that",
-                                                               "Allright, thanks!"]))
+                self._say_to_user(random.choice(["OK, that helps!",
+                                                 "Allright, thanks!"]))
 
                 self._action_client.send_async_task(str(self._state.current_semantics),
                                                     done_cb=self._done_cb,
@@ -308,49 +400,58 @@ class ConversationEngine(object):
                 self._state.wait_for_robot()
             except (KeyError, IndexError) as e:
                 rospy.logerr("Could not update semantics: {}".format(e))
-                self._robot_to_user_pub.publish(random.choice(["Something went terribly wrong, can we try a new command?",
-                                                               "I didn't understand that, what do you want me to do?",
-                                                               "What would you like me to do? Could you please rephrase you command?"]))
+                self._say_to_user(
+                    random.choice(["Something went terribly wrong, can we try a new command?",
+                                   "I didn't understand that, what do you want me to do?",
+                                   "What would you like me to do? Could you please rephrase you command?"]))
                 self._stop()
         else:
-            example = self._parser.get_random_sentence(self._state.target)
             sentence = random.choice(["Give me something useful"])
-            sentence += ", like '{}'".format(example)
-            self._robot_to_user_pub.publish(sentence)
+            if self.give_examples:
+                example = self._parser.get_random_sentence(self._state.target)
+                sentence += ", like '{}'".format(example)
+            self._say_to_user(sentence)
             self._state.wait_for_user(missing_field=self._state.missing_field, target=self._state.target)
 
     def _handle_user_while_waiting_for_robot(self, text):
+        """Talk with the user while the robot is busy doing stuff"""
         sentence = random.choice(["I'm busy, give me a sec.",
                                   "Hold on, "])
 
         if self._latest_feedback:
             sentence += " " + describe_current_subtask(self._latest_feedback.current_subtask)
 
-        self._robot_to_user_pub.publish(sentence)
+        self._say_to_user(sentence)
 
     def _handle_user_while_aborting(self, text):
+        """Talk with the user while the robot is busy aborting the action"""
         sentence = random.choice(["Yes, I'll stop ",
                                   "I'm quitting "])
 
         if self._latest_feedback:
             sentence += describe_current_subtask(self._latest_feedback.current_subtask, prefix=False)
 
-        self._robot_to_user_pub.publish(sentence)
+        self._say_to_user(sentence)
 
     def _say_ready_for_command(self):
         sentence = random.choice(["I'm ready for a command.",
                                   "Your wish is my command.",
                                   "Do you have an assignment for me?",
                                   "Do you have a command for me?",
-                                  "Please tell me what to do."
+                                  "Please tell me what to do.",
                                   "Anything to do boss?"])
-        example = self._parser.get_random_sentence(self._command_target)
 
-        sentence += " An example command is: '{}'. ".format(example)
+        if self.give_examples:
+            example = self._parser.get_random_sentence(self._command_target)
 
-        self._robot_to_user_pub.publish(sentence)
+            sentence += " An example command is: '{}'. ".format(example)
+
+        self._say_to_user(sentence)
 
     def _done_cb(self, task_outcome):
+        """The action_server's action is done, which can mean the action is finished (successfully or failed) or
+        needs additional info. This last option is handled by _on_request_missing_information and
+        the other cases by a starting a new conversation"""
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
         assert isinstance(task_outcome, TaskOutcome)
 
@@ -358,35 +459,34 @@ class ConversationEngine(object):
 
         if task_outcome.succeeded:
             rospy.loginfo("Action succeeded")
-            self._robot_to_user_pub.publish(" ".join(task_outcome.messages))
+            self._on_task_successful(" ".join(task_outcome.messages))
 
             self._start_new_conversation()
-
         elif task_outcome.result == TaskOutcome.RESULT_MISSING_INFORMATION:
             rospy.loginfo("Action needs more info from user")
 
             sentence = "".join(task_outcome.messages)
-            self._state.wait_for_user(target=self._get_grammar_target(task_outcome.missing_field),
+            target = self._get_grammar_target(task_outcome.missing_field)
+            self._state.wait_for_user(target=target,
                                       missing_field=task_outcome.missing_field)
-            example = self._parser.get_random_sentence(self._state.target)
-            sentence += " For example: '{}'".format(example)
-            self._robot_to_user_pub.publish(sentence)
+            self._on_request_missing_information(sentence, self._grammar, target)
 
         elif task_outcome.result == TaskOutcome.RESULT_TASK_EXECUTION_FAILED:
             rospy.loginfo("Action execution failed")
-            self._robot_to_user_pub.publish("".join(task_outcome.messages))
+
+            self._on_task_outcome_failed("".join(task_outcome.messages))
 
             self._start_new_conversation()
 
         elif task_outcome.result == TaskOutcome.RESULT_UNKNOWN:
             rospy.loginfo("Action result: unknown")
-            self._robot_to_user_pub.publish("".join(task_outcome.messages))
+            self._on_task_outcome_unknown("".join(task_outcome.messages))
 
             self._start_new_conversation()
 
         else:
             rospy.loginfo("Action result: other")
-            self._robot_to_user_pub.publish("".join(task_outcome.messages))
+            self._say_to_user("".join(task_outcome.messages))
 
             self._start_new_conversation()
 
@@ -394,16 +494,78 @@ class ConversationEngine(object):
         self._latest_feedback = feedback
 
         rospy.loginfo(feedback.current_subtask)
-        self._robot_to_user_pub.publish(describe_current_subtask(feedback.current_subtask))
 
-    def _get_grammar_target(self, missing_field_path):
+    @staticmethod
+    def _get_grammar_target(missing_field_path):
+        """Determine which grammar target to use when a particular field of info is missing."""
         deepest_field_name = missing_field_path.split('.')[-1]
 
-        if 'location' in deepest_field_name:
-            return 'ROOM_OR_LOCATION'
-        else:
-            return "T"
+        grammar_target = "T"
 
-    def _log_invalid_command(self, text):
+        if 'location' in deepest_field_name:
+            grammar_target = 'ROOM_OR_LOCATION'
+        elif 'entity' in deepest_field_name:
+            grammar_target = 'ROOM_OR_LOCATION'
+        elif 'target' in deepest_field_name:
+            grammar_target = 'NAMED_PERSON'
+        elif 'sentence' in deepest_field_name:
+            grammar_target = 'SAY_SENTENCE'
+        elif 'object' in deepest_field_name:
+            grammar_target = 'NAMED_OBJECT'
+
+        rospy.loginfo("Missing information '{}' must match '{}' in grammar".format(missing_field_path, grammar_target))
+        return grammar_target
+
+    @staticmethod
+    def _log_invalid_command(text):
         with open("invalid_commands.txt", "a") as dump:
-            dump.writelines([text+"\n"])
+            dump.writelines([text + "\n"])
+
+    def _say_to_user(self, message):
+        raise NotImplementedError(
+            "How to say something to the user must be implemented in the subclass. "
+            "Signature: ```_say_to_user(message: str)```")
+
+    def _on_task_successful(self, message):
+        self._say_to_user(message)
+
+    def _on_request_missing_information(self, description, grammar, target):
+        rospy.loginfo("_request_missing_information('{}', '{}...', '{}')".format(description, grammar[:10], target))
+
+        if self.give_examples:
+            example = self._parser.get_random_sentence(self._state.target)
+            description += " For example: '{}'".format(example)
+        self._say_to_user(description)
+
+    def _on_task_outcome_failed(self, message):
+        self._say_to_user(message)
+
+    def _on_task_outcome_unknown(self, message):
+        self._say_to_user(message)
+
+    def _start_wait_for_command(self, grammar, target):
+        pass
+
+    def is_text_valid_input(self, text):
+        sanitized = sanitize_text(text)
+        words = sanitized.strip().split(" ")
+        valid = False
+        if self._state.target:
+            valid = self._parser.parse(self._state.target, words, debug=True) != False
+        else:
+            valid = self._parser.parse(self._command_target, words, debug=True) != False
+        return valid
+
+
+class ConversationEngineUsingTopic(ConversationEngine):
+    def __init__(self, robot_name, grammar, command_target):
+        super(ConversationEngineUsingTopic, self).__init__(robot_name, grammar, command_target)
+
+        self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self.user_to_robot_msg)
+        self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)
+
+    def user_to_robot_msg(self, msg):
+        self._handle_user_to_robot(msg.data)
+
+    def _say_to_user(self, message):
+        self._robot_to_user_pub.publish(message)
