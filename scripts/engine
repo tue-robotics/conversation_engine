@@ -5,21 +5,44 @@ import argparse
 
 # ROS
 import rospy
+from robocup_knowledge import knowledge_loader
 
 # Conversation engine
 from conversation_engine import ConversationEngine
 
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--robot', type=str, default="amigo")
-    args = parser.parse_args(rospy.myargv()[1:])
-
     rospy.init_node("conversation_engine")
 
-    rospy.loginfo("Starting conversation engine with robot {}".format(args.robot))
-    conv_engine = ConversationEngine(args.robot)
+    robot = rospy.get_param("~robot", None)  # Robot name to use as a namespace for the action client
+    grammar = rospy.get_param("~grammar", None)  # String with the grammar to be used
+    command_target = rospy.get_param("~command_target", None)  # Node of the grammar tree to parse up to.
+    challenge = rospy.get_param("~challenge", None)  # Challenge to load grammar and command_target from if `grammar` and `command_target` are empty
+
+    if grammar and command_target and challenge:
+        rospy.logerr("Specify either `grammar` and `command_target` or only `challenge`, not all three")
+        exit(-1)
+
+    if grammar and command_target:
+        rospy.loginfo("command_target: '{}'".format(command_target))
+        rospy.loginfo("grammar: '{}'".format(grammar[:10]))
+    else:
+        if grammar and not command_target:
+            rospy.logerr("A grammar was specified without a command_target")
+            exit(-1)
+        elif not grammar and command_target:
+            rospy.logerr("A command_target was specified without a grammar")
+            exit(-1)
+
+    if challenge:
+        rospy.loginfo("Loading grammar and target from challenge '{}'".format(challenge))
+        knowledge = knowledge_loader.load_knowledge(challenge)
+        grammar = knowledge.grammar
+        command_target = knowledge.grammar_target
+
+
+    rospy.loginfo("Starting conversation engine with robot {}".format(robot))
+    conv_engine = ConversationEngine(robot, grammar, command_target=command_target)
 
     rospy.loginfo("Conversation engine started")
     rospy.spin()

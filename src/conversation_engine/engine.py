@@ -13,7 +13,6 @@ import yaml
 from action_server import Client, TaskOutcome
 from grammar_parser import cfgparser
 from std_msgs.msg import String
-from robocup_knowledge import knowledge_loader
 
 # Conversation engine
 from conversation_engine.msg import ConverseAction, ConverseResult, ConverseFeedback
@@ -125,7 +124,7 @@ class ConversationState(object):
         :rtype Dict[str, List[Dict[str, Union[str, Dict]]]]
         :return:
         """
-        return self._current_semantics
+        return deepcopy(self._current_semantics)
 
     def set_to_wait_for_user(self, target, missing_field):
         """Transition to state WAIT_FOR_USER
@@ -219,15 +218,16 @@ class ConversationState(object):
 
 
 class ConversationEngine(object):
-    def __init__(self, robot_name):
-        self._knowledge = knowledge_loader.load_knowledge('challenge_open')
+    def __init__(self, robot_name, grammar, command_target):
 
         self._state = ConversationState()
 
         self._action_client = Client(robot_name)
 
-        self._parser = cfgparser.CFGParser.fromstring(self._knowledge.grammar)
+        self._parser = cfgparser.CFGParser.fromstring(grammar)
         self._robot_name = robot_name
+        self._grammar = grammar
+        self._command_target = command_target
 
         self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self._handle_user_to_robot)
         self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)
@@ -235,9 +235,6 @@ class ConversationEngine(object):
         self._latest_feedback = None
 
         rospy.logdebug("Started conversation engine")
-
-    def __del__(self):
-        self._stop()
 
     def _handle_user_to_robot(self, msg):
         rospy.loginfo("_handle_user_to_robot('{}')".format(msg))
@@ -287,7 +284,7 @@ class ConversationEngine(object):
 
             self._action_client.cancel_all_async()
 
-            self._robot_to_user_pub.publish(random.choice(["Woah, sorry dude!"]))
+            self._robot_to_user_pub.publish(random.choice(["Woah, sorry dude for not stopping fast enough!"]))
             os.system("rosnode kill /state_machine")
             self._robot_to_user_pub.publish(random.choice(["Killed the action_server, pray for resurrection"]))
             self._start_new_conversation()  # This is assuming the state machine is back online when a command is received
@@ -297,10 +294,8 @@ class ConversationEngine(object):
     def _stop(self):
         rospy.loginfo("_stop(): Cancelling goals, resetting state")
 
-        def hard_kill(event):
-            os.system("rosnode kill /state_machine")
-            self._robot_to_user_pub.publish(random.choice(["Headshot to the action_server, it had enough time to comply"]))
-
+        def notify_user(event):
+            self._robot_to_user_pub.publish(random.choice(["State machine takes a long time to abort, you can kill it with 'sudo kill'"]))
             self._start_new_conversation()  # This is assuming the state machine is back online when a command is received
 
         self._state.set_to_aborting(rospy.Duration(20), hard_kill)
@@ -321,7 +316,7 @@ class ConversationEngine(object):
         rospy.loginfo("_handle_command('{}')".format(text))
 
         words = text.strip().split(" ")
-        semantics = self._parser.parse(self._knowledge.grammar_target, words, debug=True)
+        semantics = self._parser.parse(self._command_target, words, debug=True)
 
         result_sentence = None
 
@@ -373,10 +368,11 @@ class ConversationEngine(object):
                                                     done_cb=self._done_cb,
                                                     feedback_cb=self._feedback_cb)
                 rospy.loginfo("Updated task sent: {}".format(self._state.current_semantics))
-
             except Exception as e:
                 rospy.logerr("Could not update semantics: {}".format(e))
-                self._robot_to_user_pub.publish("Something went terribly wrong, can we try a new command?")
+                self._robot_to_user_pub.publish(random.choice(["Something went terribly wrong, can we try a new command?",
+                                                               "I didn't understand that, what do you want me to do?",
+                                                               "What would you like me to do? Could you please rephrase you command?"]))
                 self._stop()
         else:
             example = self._parser.get_random_sentence(self._state.target)
@@ -410,7 +406,7 @@ class ConversationEngine(object):
                                   "Do you have a command for me?",
                                   "Please tell me what to do."
                                   "Anything to do boss?"])
-        example = self._parser.get_random_sentence(self._knowledge.grammar_target)
+        example = self._parser.get_random_sentence(self._command_target)
 
         sentence += " An example command is: '{}'. ".format(example)
 
