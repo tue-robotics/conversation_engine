@@ -4,6 +4,7 @@ import rospy
 from robocup_knowledge import knowledge_loader
 from conversation_engine import ConversationEngineUsingTopic
 
+
 def main():
     robot = rospy.get_param("~robot")  # Robot name to use as a namespace for the action client
     grammar = rospy.get_param("~grammar", None)  # String with the grammar to be used
@@ -38,10 +39,11 @@ def main():
         command_target = knowledge.grammar_target
 
     rospy.loginfo("Starting conversation engine with robot {}".format(robot))
-    ConversationEngineUsingTopic(robot, grammar, command_target=command_target)
+    _ = ConversationEngineUsingTopic(robot, grammar, command_target=command_target)
 
     rospy.loginfo("Conversation engine started")
     rospy.spin()
+
 
 if __name__ == "__main__":
     rospy.init_node("conversation_engine")
