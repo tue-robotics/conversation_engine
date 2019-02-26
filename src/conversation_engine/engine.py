@@ -2,8 +2,8 @@
 import json
 import os
 import random
-from copy import deepcopy
 import yaml
+from copy import deepcopy
 
 # ROS
 import rospy
@@ -43,7 +43,9 @@ def sanitize_text(txt):
 
 
 def describe_current_subtask(subtask, prefix=True):
-    """Make a 'natural' language description of subtask name"""
+    """
+    Make a 'natural' language description of subtask name
+    """
     to_verb = {"AnswerQuestion": "answering a question",
                "ArmGoal": "moving my arm",
                "DemoPresentation": "giving a demo",
@@ -77,25 +79,30 @@ class ConversationState(object):
     Then the user can initiate the conversation by supplying text, which then initializes the semantics of an action.
     The ConversationEngine then sends this to the action_server and we wait for the robot to execute the action or
     think about why the action cannot be performed yet.
-    When calling the action_server, we must indicate that we are waiting for the robot via the the wait_for_robot() method.
+    When calling the action_server, we must indicate that we are waiting for the robot via the the wait_for_robot()
+    method.
 
     In the case of missing info, the robot misses some field from the semantics.
-    The ConversationEngine figures out which subtree of the grammar to use to parse the user's eventual input and passes this in the wait_for_user() method.
+    The ConversationEngine figures out which subtree of the grammar to use to parse the user's eventual input and
+    passes this in the wait_for_user() method.
     The missing field can, for example, be a location to do something with.
-    This means the grammar should not try to parse the reply to come as a type of drink or as a verb, for example, but as a location.
+    This means the grammar should not try to parse the reply to come as a type of drink or as a verb, for example, but
+    as a location.
     What rule to parse text with is stored in .target
 
     The ConversationEngine then says something to the user and waits for the user to reply.
-    When this is received, the ConversationEngine reads the grammar target from the ConversationState before it parses the replied text for additional info.
+    When this is received, the ConversationEngine reads the grammar target from the ConversationState before it parses
+    the replied text for additional info.
 
-    The current semantics are updated using update_semantics() and the action_server is called again with the now updated semantics.
+    The current semantics are updated using update_semantics() and the action_server is called again with the now
+    updated semantics.
     When this happens, the ConversationEngine must call wait_for_robot() again.
 
     The user can also ask to abort() the conversation to stop.
     """
     IDLE = "IDLE"
     WAIT_FOR_USER = "WAIT_FOR_USER"  # Waiting for info from user
-    WAIT_FOR_ROBOT = "WAIT_FOR_ROBOT"  # Waiting for the action server to reply with success/aborted (missing info or fail)
+    WAIT_FOR_ROBOT = "WAIT_FOR_ROBOT"  # Waiting for the action server to report success/aborted (missing info or fail)
     ABORTING = "ABORTING"
 
     def __init__(self):
@@ -108,32 +115,44 @@ class ConversationState(object):
 
     @property
     def state(self):
-        """Part of the conversation we're in"""
+        """
+        Part of the conversation we're in
+        """
         return self._state
 
     @property
     def target(self):
-        """Subtree of the grammar tree to use when parsing text"""
+        """
+        Subtree of the grammar tree to use when parsing text
+        """
         return self._target
 
     @property
     def missing_field(self):
-        """What field is missing in the current_semantics before the action_server can execute it
-        The user must provide useful information to fill this field."""
+        """
+        What field is missing in the current_semantics before the action_server can execute it
+        The user must provide useful information to fill this field.
+        """
         return self._missing_field
 
     @property
     def current_semantics(self):
-        """A dict containing an (incomplete) action description for the action_server"""
+        """
+        A dict containing an (incomplete) action description for the action_server
+        """
         return deepcopy(self._current_semantics)
 
     def wait_for_user(self, target, missing_field):
-        """Indicate that the ConversationEngine is waiting for the user's input.
+        """
+        Indicate that the ConversationEngine is waiting for the user's input.
+
         This is to wait for additional info, that must be parsed according to target in order to fill some missing field
         :param target: name of the grammar rule to parse the user's reply with
         :type target: str
-        :param missing_field: a 'path' indicating where to insert the additional info from the user into the current_semantics dictionary
-        :type missing_field: str"""
+        :param missing_field: a 'path' indicating where to insert the additional info from the user into the
+        current_semantics dictionary
+        :type missing_field: str
+        """
         rospy.loginfo("ConversationState: {old} -> {new}. Target='{t}', missing_field='{mf}'"
                       .format(old=self._state, new=ConversationState.WAIT_FOR_USER,
                               t=target, mf=missing_field))
@@ -142,19 +161,24 @@ class ConversationState(object):
         self._missing_field = missing_field
 
     def wait_for_robot(self):
-        """Indicate that the ConversationEngine is waiting for the robot to either finish (planning) the action"""
+        """
+        Indicate that the ConversationEngine is waiting for the robot to either finish (planning) the action
+        """
         rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.WAIT_FOR_ROBOT))
         self._state = ConversationState.WAIT_FOR_ROBOT
         self._target = None
         self._missing_field = None
 
     def aborting(self, timeout, timeout_callback):
-        """Set the state to ABORTING. If the action server hasn't aborted the action after the given timeout,
+        """
+        Set the state to ABORTING. If the action server hasn't aborted the action after the given timeout,
         call the callback to deal with that
-        :param timeout duration to wait before killing
-        :type timeout rospy.Duration
-        :param timeout_callback callback is called when the aborting takes too long
-        :type callable(event: rospy.TimerEvent)"""
+
+        :param timeout: duration to wait before killing
+        :type timeout: rospy.Duration
+        :param timeout_callback: callback is called when the aborting takes too long
+        :type timeout_callback: (event: rospy.TimerEvent)
+        """
         rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.ABORTING))
         self._state = ConversationState.ABORTING
 
@@ -163,17 +187,24 @@ class ConversationState(object):
                     oneshot=True)
 
     def initialize_semantics(self, semantics):
-        """Initialize an action description for the action_server. This gets updated as the conversation progresses, via update_semantics()"""
+        """
+        Initialize an action description for the action_server. This gets updated as the conversation progresses, via
+        update_semantics()
+        """
         self._current_semantics = semantics
         rospy.loginfo("Initialized semantics: {}".format(self._current_semantics))
 
     def update_semantics(self, semantics, missing_field_path):
-        """Update the current action description for the action_server
+        """
+        Update the current action description for the action_server
+
         The semantics will be filled into current_semantics at the missing_field_path
         :param semantics: dictionary with additional info
         :type semantics: dict
-        :param missing_field_path: a 'path' indicating where to insert the additional info from the user into the current_semantics dictionary
-        :type missing_field_path: str"""
+        :param missing_field_path: a 'path' indicating where to insert the additional info from the user into the
+        current_semantics dictionary
+        :type missing_field_path: str
+        """
 
         # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
         # the missing information path
@@ -336,26 +367,26 @@ class ConversationEngine(object):
         self._start_wait_for_command(self._grammar, self._command_target)
 
     def _handle_command(self, text):
-        """Parse text into goal semantics, send to action_server"""
+        """
+        Parse text into goal semantics, send to action_server
+        """
         rospy.loginfo("_handle_command('{}')".format(text))
 
         words = text.strip().split(" ")
 
         # The command the user gave is being parsed towards the command_target in the grammar
         # The parse returns a task description dictionary
-        self._state.initialize_semantics(self._parser.parse(self._command_target, words, debug=True))
-
-        result_sentence = None
-
-        if self._state.current_semantics:
+        try:
+            semantics = self._parser.parse_raw(self._command_target, words, debug=True)
+            self._state.initialize_semantics(semantics)
             self._action_client.send_async_task(str(self._state.current_semantics),
                                                 done_cb=self._done_cb,
                                                 feedback_cb=self._feedback_cb)
             rospy.loginfo("Task sent: {}".format(self._state.current_semantics))
 
             self._state.wait_for_robot()
-        else:
-            rospy.loginfo("Could not parse '{}'".format(text))
+        except (cfgparser.GrammarError, cfgparser.ParseError) as e:
+            rospy.logerr("Parsing '{}' failed: {}".format(text, e))
             self._log_invalid_command(text)
 
             if 'sandwich' in text:
@@ -374,47 +405,53 @@ class ConversationEngine(object):
             self._start_new_conversation()
 
     def _handle_additional_info(self, text):
-        """Parse text into additional info according to grammar & target received from action_server result"""
+        """
+        Parse text into additional info according to grammar & target received from action_server result
+        """
         rospy.loginfo("_handle_additional_info('{}')".format(text))
 
         words = text.strip().split(" ")
-        additional_semantics = self._parser.parse(self._state.target, words, debug=True)
-
-        rospy.loginfo("additional_semantics: {}".format(additional_semantics))
-        sem_str = json.dumps(additional_semantics)
-        sem_dict = yaml.load(sem_str)
-        rospy.logdebug("parsed: {}".format(sem_dict))
-
-        if additional_semantics:
-            try:
-                rospy.loginfo("Additional_semantics: {}".format(additional_semantics))
-                self._state.update_semantics(sem_dict, self._state.missing_field)
-                self._say_to_user(random.choice(["OK, that helps!",
-                                                 "Allright, thanks!"]))
-
-                self._action_client.send_async_task(str(self._state.current_semantics),
-                                                    done_cb=self._done_cb,
-                                                    feedback_cb=self._feedback_cb)
-                rospy.loginfo("Updated task sent: {}".format(self._state.current_semantics))
-
-                self._state.wait_for_robot()
-            except (KeyError, IndexError) as e:
-                rospy.logerr("Could not update semantics: {}".format(e))
-                self._say_to_user(
-                    random.choice(["Something went terribly wrong, can we try a new command?",
-                                   "I didn't understand that, what do you want me to do?",
-                                   "What would you like me to do? Could you please rephrase you command?"]))
-                self._stop()
-        else:
+        try:
+            additional_semantics = self._parser.parse_raw(self._state.target, words, debug=True)
+        except (cfgparser.GrammarError, cfgparser.ParseError) as e:
+            rospy.logerr("Parsing '{}' failed: {}".format(text, e))
             sentence = random.choice(["Give me something useful"])
             if self.give_examples:
                 example = self._parser.get_random_sentence(self._state.target)
                 sentence += ", like '{}'".format(example)
             self._say_to_user(sentence)
             self._state.wait_for_user(missing_field=self._state.missing_field, target=self._state.target)
+            return
+
+        rospy.loginfo("additional_semantics: {}".format(additional_semantics))
+        sem_str = json.dumps(additional_semantics)
+        sem_dict = yaml.load(sem_str)
+        rospy.logdebug("parsed: {}".format(sem_dict))
+
+        try:
+            rospy.loginfo("Additional_semantics: {}".format(additional_semantics))
+            self._state.update_semantics(sem_dict, self._state.missing_field)
+            self._say_to_user(random.choice(["OK, that helps!",
+                                             "Allright, thanks!"]))
+
+            self._action_client.send_async_task(str(self._state.current_semantics),
+                                                done_cb=self._done_cb,
+                                                feedback_cb=self._feedback_cb)
+            rospy.loginfo("Updated task sent: {}".format(self._state.current_semantics))
+
+            self._state.wait_for_robot()
+        except (KeyError, IndexError) as e:
+            rospy.logerr("Could not update semantics: {}".format(e))
+            self._say_to_user(
+                random.choice(["Something went terribly wrong, can we try a new command?",
+                               "I didn't understand that, what do you want me to do?",
+                               "What would you like me to do? Could you please rephrase you command?"]))
+            self._stop()
 
     def _handle_user_while_waiting_for_robot(self, text):
-        """Talk with the user while the robot is busy doing stuff"""
+        """
+        Talk with the user while the robot is busy doing stuff
+        """
         sentence = random.choice(["I'm busy, give me a sec.",
                                   "Hold on, "])
 
@@ -424,7 +461,9 @@ class ConversationEngine(object):
         self._say_to_user(sentence)
 
     def _handle_user_while_aborting(self, text):
-        """Talk with the user while the robot is busy aborting the action"""
+        """
+        Talk with the user while the robot is busy aborting the action
+        """
         sentence = random.choice(["Yes, I'll stop ",
                                   "I'm quitting "])
 
@@ -449,9 +488,11 @@ class ConversationEngine(object):
         self._say_to_user(sentence)
 
     def _done_cb(self, task_outcome):
-        """The action_server's action is done, which can mean the action is finished (successfully or failed) or
+        """
+        The action_server's action is done, which can mean the action is finished (successfully or failed) or
         needs additional info. This last option is handled by _on_request_missing_information and
-        the other cases by a starting a new conversation"""
+        the other cases by a starting a new conversation
+        """
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
         assert isinstance(task_outcome, TaskOutcome)
 
@@ -497,7 +538,9 @@ class ConversationEngine(object):
 
     @staticmethod
     def _get_grammar_target(missing_field_path):
-        """Determine which grammar target to use when a particular field of info is missing."""
+        """
+        Determine which grammar target to use when a particular field of info is missing.
+        """
         deepest_field_name = missing_field_path.split('.')[-1]
 
         grammar_target = "T"
@@ -547,14 +590,23 @@ class ConversationEngine(object):
         pass
 
     def is_text_valid_input(self, text):
+        """
+        Checks if the provided text input is valid by parsing it
+
+        :param text: input text
+        :type text: str
+        :return: whether the parsing succeeded or failed
+        :returns: bool
+        """
         sanitized = sanitize_text(text)
         words = sanitized.strip().split(" ")
-        valid = False
-        if self._state.target:
-            valid = self._parser.parse(self._state.target, words, debug=True) != False
-        else:
-            valid = self._parser.parse(self._command_target, words, debug=True) != False
-        return valid
+        target = self._state.target if self._state.target else self._command_target
+        try:
+            self._parser.parse_raw(target, words, debug=True)
+            return True
+        except (cfgparser.GrammarError, cfgparser.ParseError) as e:
+            rospy.logerr("Text input '{}' is not valid: {}".format(text, e))
+            return False
 
 
 class ConversationEngineUsingTopic(ConversationEngine):
