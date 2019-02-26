@@ -2,8 +2,8 @@
 import json
 import os
 import random
-from copy import deepcopy
 import yaml
+from copy import deepcopy
 
 # ROS
 import rospy
@@ -343,19 +343,17 @@ class ConversationEngine(object):
 
         # The command the user gave is being parsed towards the command_target in the grammar
         # The parse returns a task description dictionary
-        self._state.initialize_semantics(self._parser.parse(self._command_target, words, debug=True))
-
-        result_sentence = None
-
-        if self._state.current_semantics:
+        try:
+            semantics = self._parser.parse_raw(self._command_target, words, debug=True)
+            self._state.initialize_semantics(semantics)
             self._action_client.send_async_task(str(self._state.current_semantics),
                                                 done_cb=self._done_cb,
                                                 feedback_cb=self._feedback_cb)
             rospy.loginfo("Task sent: {}".format(self._state.current_semantics))
 
             self._state.wait_for_robot()
-        else:
-            rospy.loginfo("Could not parse '{}'".format(text))
+        except (cfgparser.GrammarError, cfgparser.ParseError) as e:
+            rospy.logerr("Parsing '{}' failed: {}".format(text, e))
             self._log_invalid_command(text)
 
             if 'sandwich' in text:
@@ -374,44 +372,48 @@ class ConversationEngine(object):
             self._start_new_conversation()
 
     def _handle_additional_info(self, text):
-        """Parse text into additional info according to grammar & target received from action_server result"""
+        """
+        Parse text into additional info according to grammar & target received from action_server result
+        """
         rospy.loginfo("_handle_additional_info('{}')".format(text))
 
         words = text.strip().split(" ")
-        additional_semantics = self._parser.parse(self._state.target, words, debug=True)
-
-        rospy.loginfo("additional_semantics: {}".format(additional_semantics))
-        sem_str = json.dumps(additional_semantics)
-        sem_dict = yaml.load(sem_str)
-        rospy.logdebug("parsed: {}".format(sem_dict))
-
-        if additional_semantics:
-            try:
-                rospy.loginfo("Additional_semantics: {}".format(additional_semantics))
-                self._state.update_semantics(sem_dict, self._state.missing_field)
-                self._say_to_user(random.choice(["OK, that helps!",
-                                                 "Allright, thanks!"]))
-
-                self._action_client.send_async_task(str(self._state.current_semantics),
-                                                    done_cb=self._done_cb,
-                                                    feedback_cb=self._feedback_cb)
-                rospy.loginfo("Updated task sent: {}".format(self._state.current_semantics))
-
-                self._state.wait_for_robot()
-            except (KeyError, IndexError) as e:
-                rospy.logerr("Could not update semantics: {}".format(e))
-                self._say_to_user(
-                    random.choice(["Something went terribly wrong, can we try a new command?",
-                                   "I didn't understand that, what do you want me to do?",
-                                   "What would you like me to do? Could you please rephrase you command?"]))
-                self._stop()
-        else:
+        try:
+            additional_semantics = self._parser.parse_raw(self._state.target, words, debug=True)
+        except (cfgparser.GrammarError, cfgparser.ParseError) as e:
+            rospy.logerr("Parsing '{}' failed: {}".format(text, e))
             sentence = random.choice(["Give me something useful"])
             if self.give_examples:
                 example = self._parser.get_random_sentence(self._state.target)
                 sentence += ", like '{}'".format(example)
             self._say_to_user(sentence)
             self._state.wait_for_user(missing_field=self._state.missing_field, target=self._state.target)
+            return
+
+        rospy.loginfo("additional_semantics: {}".format(additional_semantics))
+        sem_str = json.dumps(additional_semantics)
+        sem_dict = yaml.load(sem_str)
+        rospy.logdebug("parsed: {}".format(sem_dict))
+
+        try:
+            rospy.loginfo("Additional_semantics: {}".format(additional_semantics))
+            self._state.update_semantics(sem_dict, self._state.missing_field)
+            self._say_to_user(random.choice(["OK, that helps!",
+                                             "Allright, thanks!"]))
+
+            self._action_client.send_async_task(str(self._state.current_semantics),
+                                                done_cb=self._done_cb,
+                                                feedback_cb=self._feedback_cb)
+            rospy.loginfo("Updated task sent: {}".format(self._state.current_semantics))
+
+            self._state.wait_for_robot()
+        except (KeyError, IndexError) as e:
+            rospy.logerr("Could not update semantics: {}".format(e))
+            self._say_to_user(
+                random.choice(["Something went terribly wrong, can we try a new command?",
+                               "I didn't understand that, what do you want me to do?",
+                               "What would you like me to do? Could you please rephrase you command?"]))
+            self._stop()
 
     def _handle_user_while_waiting_for_robot(self, text):
         """Talk with the user while the robot is busy doing stuff"""
@@ -549,12 +551,13 @@ class ConversationEngine(object):
     def is_text_valid_input(self, text):
         sanitized = sanitize_text(text)
         words = sanitized.strip().split(" ")
-        valid = False
-        if self._state.target:
-            valid = self._parser.parse(self._state.target, words, debug=True) != False
-        else:
-            valid = self._parser.parse(self._command_target, words, debug=True) != False
-        return valid
+        target = self._state.target if self._state.target else self._command_target
+        try:
+            self._parser.parse_raw(target, words, debug=True)
+            return True
+        except (cfgparser.GrammarError, cfgparser.ParseError) as e:
+            rospy.logerr("Text input '{}' is not valid: {}".format(text, e))
+            return False
 
 
 class ConversationEngineUsingTopic(ConversationEngine):
