@@ -43,7 +43,9 @@ def sanitize_text(txt):
 
 
 def describe_current_subtask(subtask, prefix=True):
-    """Make a 'natural' language description of subtask name"""
+    """
+    Make a 'natural' language description of subtask name
+    """
     to_verb = {"AnswerQuestion": "answering a question",
                "ArmGoal": "moving my arm",
                "DemoPresentation": "giving a demo",
@@ -77,25 +79,30 @@ class ConversationState(object):
     Then the user can initiate the conversation by supplying text, which then initializes the semantics of an action.
     The ConversationEngine then sends this to the action_server and we wait for the robot to execute the action or
     think about why the action cannot be performed yet.
-    When calling the action_server, we must indicate that we are waiting for the robot via the the wait_for_robot() method.
+    When calling the action_server, we must indicate that we are waiting for the robot via the the wait_for_robot()
+    method.
 
     In the case of missing info, the robot misses some field from the semantics.
-    The ConversationEngine figures out which subtree of the grammar to use to parse the user's eventual input and passes this in the wait_for_user() method.
+    The ConversationEngine figures out which subtree of the grammar to use to parse the user's eventual input and
+    passes this in the wait_for_user() method.
     The missing field can, for example, be a location to do something with.
-    This means the grammar should not try to parse the reply to come as a type of drink or as a verb, for example, but as a location.
+    This means the grammar should not try to parse the reply to come as a type of drink or as a verb, for example, but
+    as a location.
     What rule to parse text with is stored in .target
 
     The ConversationEngine then says something to the user and waits for the user to reply.
-    When this is received, the ConversationEngine reads the grammar target from the ConversationState before it parses the replied text for additional info.
+    When this is received, the ConversationEngine reads the grammar target from the ConversationState before it parses
+    the replied text for additional info.
 
-    The current semantics are updated using update_semantics() and the action_server is called again with the now updated semantics.
+    The current semantics are updated using update_semantics() and the action_server is called again with the now
+    updated semantics.
     When this happens, the ConversationEngine must call wait_for_robot() again.
 
     The user can also ask to abort() the conversation to stop.
     """
     IDLE = "IDLE"
     WAIT_FOR_USER = "WAIT_FOR_USER"  # Waiting for info from user
-    WAIT_FOR_ROBOT = "WAIT_FOR_ROBOT"  # Waiting for the action server to reply with success/aborted (missing info or fail)
+    WAIT_FOR_ROBOT = "WAIT_FOR_ROBOT"  # Waiting for the action server to report success/aborted (missing info or fail)
     ABORTING = "ABORTING"
 
     def __init__(self):
@@ -108,32 +115,44 @@ class ConversationState(object):
 
     @property
     def state(self):
-        """Part of the conversation we're in"""
+        """
+        Part of the conversation we're in
+        """
         return self._state
 
     @property
     def target(self):
-        """Subtree of the grammar tree to use when parsing text"""
+        """
+        Subtree of the grammar tree to use when parsing text
+        """
         return self._target
 
     @property
     def missing_field(self):
-        """What field is missing in the current_semantics before the action_server can execute it
-        The user must provide useful information to fill this field."""
+        """
+        What field is missing in the current_semantics before the action_server can execute it
+        The user must provide useful information to fill this field.
+        """
         return self._missing_field
 
     @property
     def current_semantics(self):
-        """A dict containing an (incomplete) action description for the action_server"""
+        """
+        A dict containing an (incomplete) action description for the action_server
+        """
         return deepcopy(self._current_semantics)
 
     def wait_for_user(self, target, missing_field):
-        """Indicate that the ConversationEngine is waiting for the user's input.
+        """
+        Indicate that the ConversationEngine is waiting for the user's input.
+
         This is to wait for additional info, that must be parsed according to target in order to fill some missing field
         :param target: name of the grammar rule to parse the user's reply with
         :type target: str
-        :param missing_field: a 'path' indicating where to insert the additional info from the user into the current_semantics dictionary
-        :type missing_field: str"""
+        :param missing_field: a 'path' indicating where to insert the additional info from the user into the
+        current_semantics dictionary
+        :type missing_field: str
+        """
         rospy.loginfo("ConversationState: {old} -> {new}. Target='{t}', missing_field='{mf}'"
                       .format(old=self._state, new=ConversationState.WAIT_FOR_USER,
                               t=target, mf=missing_field))
@@ -142,19 +161,23 @@ class ConversationState(object):
         self._missing_field = missing_field
 
     def wait_for_robot(self):
-        """Indicate that the ConversationEngine is waiting for the robot to either finish (planning) the action"""
+        """
+        Indicate that the ConversationEngine is waiting for the robot to either finish (planning) the action
+        """
         rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.WAIT_FOR_ROBOT))
         self._state = ConversationState.WAIT_FOR_ROBOT
         self._target = None
         self._missing_field = None
 
     def aborting(self, timeout, timeout_callback):
-        """Set the state to ABORTING. If the action server hasn't aborted the action after the given timeout,
+        """
+        Set the state to ABORTING. If the action server hasn't aborted the action after the given timeout,
         call the callback to deal with that
-        :param timeout duration to wait before killing
-        :type timeout rospy.Duration
-        :param timeout_callback callback is called when the aborting takes too long
-        :type callable(event: rospy.TimerEvent)"""
+
+        :param timeout: duration to wait before killing
+        :type timeout: rospy.Duration
+        :param timeout_callback: callback is called when the aborting takes too long
+        :type timeout_callback: (event: rospy.TimerEvent)"""
         rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.ABORTING))
         self._state = ConversationState.ABORTING
 
@@ -163,17 +186,24 @@ class ConversationState(object):
                     oneshot=True)
 
     def initialize_semantics(self, semantics):
-        """Initialize an action description for the action_server. This gets updated as the conversation progresses, via update_semantics()"""
+        """
+        Initialize an action description for the action_server. This gets updated as the conversation progresses, via
+        update_semantics()
+        """
         self._current_semantics = semantics
         rospy.loginfo("Initialized semantics: {}".format(self._current_semantics))
 
     def update_semantics(self, semantics, missing_field_path):
-        """Update the current action description for the action_server
+        """
+        Update the current action description for the action_server
+
         The semantics will be filled into current_semantics at the missing_field_path
         :param semantics: dictionary with additional info
         :type semantics: dict
-        :param missing_field_path: a 'path' indicating where to insert the additional info from the user into the current_semantics dictionary
-        :type missing_field_path: str"""
+        :param missing_field_path: a 'path' indicating where to insert the additional info from the user into the
+        current_semantics dictionary
+        :type missing_field_path: str
+        """
 
         # I assume semantics is the exact information requested and supposed to go in place of the field indicated by
         # the missing information path
@@ -416,7 +446,9 @@ class ConversationEngine(object):
             self._stop()
 
     def _handle_user_while_waiting_for_robot(self, text):
-        """Talk with the user while the robot is busy doing stuff"""
+        """
+        Talk with the user while the robot is busy doing stuff
+        """
         sentence = random.choice(["I'm busy, give me a sec.",
                                   "Hold on, "])
 
@@ -426,7 +458,9 @@ class ConversationEngine(object):
         self._say_to_user(sentence)
 
     def _handle_user_while_aborting(self, text):
-        """Talk with the user while the robot is busy aborting the action"""
+        """
+        Talk with the user while the robot is busy aborting the action
+        """
         sentence = random.choice(["Yes, I'll stop ",
                                   "I'm quitting "])
 
@@ -451,9 +485,11 @@ class ConversationEngine(object):
         self._say_to_user(sentence)
 
     def _done_cb(self, task_outcome):
-        """The action_server's action is done, which can mean the action is finished (successfully or failed) or
+        """
+        The action_server's action is done, which can mean the action is finished (successfully or failed) or
         needs additional info. This last option is handled by _on_request_missing_information and
-        the other cases by a starting a new conversation"""
+        the other cases by a starting a new conversation
+        """
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
         assert isinstance(task_outcome, TaskOutcome)
 
@@ -499,7 +535,9 @@ class ConversationEngine(object):
 
     @staticmethod
     def _get_grammar_target(missing_field_path):
-        """Determine which grammar target to use when a particular field of info is missing."""
+        """
+        Determine which grammar target to use when a particular field of info is missing.
+        """
         deepest_field_name = missing_field_path.split('.')[-1]
 
         grammar_target = "T"
