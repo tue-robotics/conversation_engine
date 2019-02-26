@@ -177,7 +177,8 @@ class ConversationState(object):
         :param timeout: duration to wait before killing
         :type timeout: rospy.Duration
         :param timeout_callback: callback is called when the aborting takes too long
-        :type timeout_callback: (event: rospy.TimerEvent)"""
+        :type timeout_callback: (event: rospy.TimerEvent)
+        """
         rospy.loginfo("ConversationState: {old} -> {new}".format(old=self._state, new=ConversationState.ABORTING))
         self._state = ConversationState.ABORTING
 
@@ -366,7 +367,9 @@ class ConversationEngine(object):
         self._start_wait_for_command(self._grammar, self._command_target)
 
     def _handle_command(self, text):
-        """Parse text into goal semantics, send to action_server"""
+        """
+        Parse text into goal semantics, send to action_server
+        """
         rospy.loginfo("_handle_command('{}')".format(text))
 
         words = text.strip().split(" ")
@@ -587,6 +590,14 @@ class ConversationEngine(object):
         pass
 
     def is_text_valid_input(self, text):
+        """
+        Checks if the provided text input is valid by parsing it
+
+        :param text: input text
+        :type text: str
+        :return: whether the parsing succeeded or failed
+        :returns: bool
+        """
         sanitized = sanitize_text(text)
         words = sanitized.strip().split(" ")
         target = self._state.target if self._state.target else self._command_target
