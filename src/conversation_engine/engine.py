@@ -246,12 +246,12 @@ class ConversationEngine(object):
     - user_to_robot_text to accept text from the user
     """
 
-    def __init__(self, robot_name, grammar, command_target, give_examples=True):
+    def __init__(self, action_client, grammar, command_target, give_examples=True):
         """
         Initialize a new ConversationEngine for the given robot, using some grammar with a command_target.
         Indicate whether to give examples of thins to say to the user via give_examples
-        :param robot_name: name of the robot to connect with
-        :type robot_name: str
+        :param action_client: interface to the action server
+        :type action_client: Client
         :param grammar: string to initialize a CFGParser with see https://github.com/tue-robotics/grammar_parser/
         :type grammar: str
         :param grammar: the root of the grammar's parse tree
@@ -263,10 +263,9 @@ class ConversationEngine(object):
 
         self._state = ConversationState()
 
-        self._action_client = Client(robot_name)
+        self._action_client = action_client  # ToDo: update (GPSR) dependency before merging!
 
         self._parser = cfgparser.CFGParser.fromstring(grammar)
-        self._robot_name = robot_name
         self._grammar = grammar
         self._command_target = command_target
 
@@ -611,7 +610,10 @@ class ConversationEngine(object):
 
 class ConversationEngineUsingTopic(ConversationEngine):
     def __init__(self, robot_name, grammar, command_target):
-        super(ConversationEngineUsingTopic, self).__init__(robot_name, grammar, command_target)
+
+        client = Client(robot_name)
+
+        super(ConversationEngineUsingTopic, self).__init__(client, grammar, command_target)
 
         self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self.user_to_robot_msg)
         self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)
