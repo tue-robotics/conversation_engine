@@ -1,5 +1,6 @@
 # System
 import mock
+print(mock.__version__)
 import unittest
 
 # TU/e Robotics
