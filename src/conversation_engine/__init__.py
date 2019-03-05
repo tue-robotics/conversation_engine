@@ -1,1 +1,1 @@
-from engine import ConversationEngine, ConversationEngineUsingTopic
+from engine import ConversationEngine, ConversationEngineUsingTopic, ConversationState
