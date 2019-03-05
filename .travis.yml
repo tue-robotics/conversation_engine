@@ -14,4 +14,5 @@ install:
   - bash install-package.sh --package=$PACKAGE --branch=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH} --commit=$TRAVIS_COMMIT --pullrequest=$TRAVIS_PULL_REQUEST
 
 script:
+  - python -c 'import mock; print(mock.__version__)'
   - bash build-package.sh --package=$PACKAGE
