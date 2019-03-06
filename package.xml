@@ -38,4 +38,6 @@
   <exec_depend>action_server</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  
+  <test_depend>python-mock</test_depend>
 </package>
