@@ -257,9 +257,13 @@ class ConversationEngine(object):
         :param action_client: interface to the action server
         :type action_client: Client
         :param grammar: string to initialize a CFGParser with see https://github.com/tue-robotics/grammar_parser/
+            The grammar must result in an action description dictionary, like
+            {'actions': [{'action': 'hand-over',
+                          'object': {'type': 'drink'},
+                          'target-location': {'type': 'person', 'id': 'operator'}}]}
         :type grammar: str
-        :param grammar: the root of the grammar's parse tree
-        :type grammar: str
+        :param command_target: the root of the grammar's parse tree
+        :type command_target: str
         :param give_examples: Include examples when talking with the user.
             These are randomly generated from the active part of the grammar
         :type give_examples: bool
