@@ -191,6 +191,10 @@ class ConversationState(object):
         Initialize an action description for the action_server. This gets updated as the conversation progresses, via
         update_semantics()
         """
+
+        assert isinstance(semantics, dict), "the action description in 'semantics' must be a dictionary, with an 'action' key"
+        assert 'actions' in semantics, "the action description in 'semantics' is missing the 'actions' key"
+
         self._current_semantics = semantics
         rospy.loginfo("Initialized semantics: {}".format(self._current_semantics))
 

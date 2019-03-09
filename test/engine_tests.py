@@ -38,8 +38,14 @@ class ConversationEngineTests(unittest.TestCase):
 
     def test_simple_assignment(self):
         sentence = "tell the time"
-        target = "A"
-        grammar = "{} -> {}".format(target, sentence)
+        target = "T"
+        grammar = [
+            "T[A] -> C[A]",
+            "C[{'actions': <A1>}] -> VP[A1]",
+            "VP[{'action': 'say', 'sentence': X}] -> V_SAY SAY_SENTENCE[X]",
+            "V_SAY -> tell | say",
+            "SAY_SENTENCE['time'] -> the time"]
+        grammar = "\n".join(grammar)
         wce = WrappedConversationEngine(grammar, target)
         wce.user_to_robot_msg(sentence)
         self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_ROBOT)  # State should have changed
