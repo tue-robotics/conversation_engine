@@ -271,7 +271,7 @@ class ConversationEngine(object):
 
         self._state = ConversationState()
 
-        self._action_client = action_client  # ToDo: update (GPSR) dependency before merging!
+        self._action_client = action_client
 
         self._parser = cfgparser.CFGParser.fromstring(grammar)
         self._grammar = grammar
