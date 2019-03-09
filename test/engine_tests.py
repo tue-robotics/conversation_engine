@@ -124,8 +124,5 @@ class ConversationEngineTests(unittest.TestCase):
         self.assertTrue(any([msg2 in msg_to_user for msg_to_user in wce.robot_to_user_messages]))
 
 
-
-
-
 if __name__ == "__main__":
     unittest.main()
