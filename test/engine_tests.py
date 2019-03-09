@@ -61,12 +61,31 @@ class ConversationEngineTests(unittest.TestCase):
         self.assertTrue(any([msg in msg_to_user for msg_to_user in wce.robot_to_user_messages]))
 
     def test_missing_information(self):
+        """Test that the engine asks for missing information
+        The conversation should go like this:
+        User:  "bring me a drink"
+        Robot: "Don't know where to look for the drink" (missing information: 'action[0].location')
+        User:  "fridge"
+        Robot: "here's your drink"
+        """
         sentence = "bring me a drink"
-        target = "A"
+        target = "T"
         location = "fridge"
         missing_field = "action[0].location"
+
         # ToDo: not nice
-        grammar = "{} -> {}\nROOM_OR_LOCATION -> {}".format(target, sentence, location)
+        grammar = "T[A] -> C[A]\n"
+        grammar += "C[{'actions': <A1>}] -> VP[A1]\n"  # This 'actions' makes that the grammar _parser outputs a dict with 'actions'
+        grammar += "V_BRING -> bring | give\n"
+        grammar += "DET -> the | a\n"
+        grammar += "OPERATOR[{'type': 'person', 'id': 'operator'}] -> me\n"
+        grammar += "NAMED_OBJECT[{'type': 'drink'}] -> drink\n"
+
+        grammar += "VP[{'action': 'hand-over', 'target-location': Y, 'object': Z}] -> V_BRING OPERATOR[Y] DET NAMED_OBJECT[Z]\n"
+
+        grammar += "ROOM_OR_LOCATION[X] -> LOCATION[X]\n"
+        grammar += "LOCATION[{'id': 'fridge'}] -> fridge\n"
+        # grammar = "{} -> {}\nROOM_OR_LOCATION -> {}".format(target, sentence, location)
         wce = WrappedConversationEngine(grammar, target)
         wce.user_to_robot_msg(sentence)
         self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_ROBOT)  # State should have changed
@@ -77,8 +96,12 @@ class ConversationEngineTests(unittest.TestCase):
         outcome = TaskOutcome(TaskOutcome.RESULT_MISSING_INFORMATION, [msg], missing_field)
         wce._done_cb(outcome)
 
+        # The TaskOutcome indicates that we are missing some info, which should be put in the missing_field
+        # The missing field is mapped to a part of the grammar (ROOM_OR_LOCATION) by the ConversationEngine
+
         # Check result
         self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_USER)
+        self.assertEqual(wce._state.target, "ROOM_OR_LOCATION")
         self.assertTrue(any([msg in msg_to_user for msg_to_user in wce.robot_to_user_messages]))
 
         # Clear the user messages
