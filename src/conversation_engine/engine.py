@@ -191,6 +191,10 @@ class ConversationState(object):
         Initialize an action description for the action_server. This gets updated as the conversation progresses, via
         update_semantics()
         """
+
+        assert isinstance(semantics, dict), "the action description in 'semantics' must be a dictionary, with an 'action' key"
+        assert 'actions' in semantics, "the action description in 'semantics' is missing the 'actions' key"
+
         self._current_semantics = semantics
         rospy.loginfo("Initialized semantics: {}".format(self._current_semantics))
 
@@ -246,16 +250,20 @@ class ConversationEngine(object):
     - user_to_robot_text to accept text from the user
     """
 
-    def __init__(self, robot_name, grammar, command_target, give_examples=True):
+    def __init__(self, action_client, grammar, command_target, give_examples=True):
         """
         Initialize a new ConversationEngine for the given robot, using some grammar with a command_target.
         Indicate whether to give examples of thins to say to the user via give_examples
-        :param robot_name: name of the robot to connect with
-        :type robot_name: str
+        :param action_client: interface to the action server
+        :type action_client: Client
         :param grammar: string to initialize a CFGParser with see https://github.com/tue-robotics/grammar_parser/
+            The grammar must result in an action description dictionary, like
+            {'actions': [{'action': 'hand-over',
+                          'object': {'type': 'drink'},
+                          'target-location': {'type': 'person', 'id': 'operator'}}]}
         :type grammar: str
-        :param grammar: the root of the grammar's parse tree
-        :type grammar: str
+        :param command_target: the root of the grammar's parse tree
+        :type command_target: str
         :param give_examples: Include examples when talking with the user.
             These are randomly generated from the active part of the grammar
         :type give_examples: bool
@@ -263,10 +271,9 @@ class ConversationEngine(object):
 
         self._state = ConversationState()
 
-        self._action_client = Client(robot_name)
+        self._action_client = action_client
 
         self._parser = cfgparser.CFGParser.fromstring(grammar)
-        self._robot_name = robot_name
         self._grammar = grammar
         self._command_target = command_target
 
@@ -611,7 +618,10 @@ class ConversationEngine(object):
 
 class ConversationEngineUsingTopic(ConversationEngine):
     def __init__(self, robot_name, grammar, command_target):
-        super(ConversationEngineUsingTopic, self).__init__(robot_name, grammar, command_target)
+
+        client = Client(robot_name)
+
+        super(ConversationEngineUsingTopic, self).__init__(client, grammar, command_target)
 
         self._user_to_robot_sub = rospy.Subscriber("user_to_robot", String, self.user_to_robot_msg)
         self._robot_to_user_pub = rospy.Publisher("robot_to_user", String, queue_size=10)
