@@ -19,6 +19,7 @@ def sanitize_text(txt):
     lowered = stripped.lower()
 
     mapping = {"dining table": "dining_table",
+               "dinner table": "dinner_table",
                "display case": "display_case",
                "storage shelf": "storage_shelf",
                "couch table": "couch_table",
