@@ -73,7 +73,8 @@ def describe_current_subtask(subtask, prefix=True):
 
 
 class ConversationState(object):
-    """Encapsulate all conversation state.
+    """
+    Encapsulate all conversation state.
     This makes it impossible to transition to a next state without setting the correct fields
 
     When a new conversation is started, the ConversationState is IDLE.
@@ -148,6 +149,7 @@ class ConversationState(object):
         Indicate that the ConversationEngine is waiting for the user's input.
 
         This is to wait for additional info, that must be parsed according to target in order to fill some missing field
+
         :param target: name of the grammar rule to parse the user's reply with
         :type target: str
         :param missing_field: a 'path' indicating where to insert the additional info from the user into the
@@ -204,6 +206,7 @@ class ConversationState(object):
         Update the current action description for the action_server
 
         The semantics will be filled into current_semantics at the missing_field_path
+
         :param semantics: dictionary with additional info
         :type semantics: dict
         :param missing_field_path: a 'path' indicating where to insert the additional info from the user into the
@@ -231,7 +234,9 @@ class ConversationState(object):
 
 
 class ConversationEngine(object):
-    """ConversationEngine provides the bridge between the user and the action_server.
+    """
+    ConversationEngine provides the bridge between the user and the action_server.
+
     It accepts text and parses it to a 'semantics' dictionary that the action_server can interpret.
 
     The action_server then tries to formulate a plan based on the semantics and either:
@@ -255,6 +260,7 @@ class ConversationEngine(object):
         """
         Initialize a new ConversationEngine for the given robot, using some grammar with a command_target.
         Indicate whether to give examples of thins to say to the user via give_examples
+
         :param action_client: interface to the action server
         :type action_client: Client
         :param grammar: string to initialize a CFGParser with see https://github.com/tue-robotics/grammar_parser/
@@ -285,15 +291,18 @@ class ConversationEngine(object):
         rospy.logdebug("Started conversation engine")
 
     def user_to_robot_text(self, text):
-        """Accept raw text from the user.
+        """
+        Accept raw text from the user.
 
         :param text: what the user typed or said
         :type text str"""
         self._handle_user_to_robot(text)
 
     def _handle_user_to_robot(self, text):
-        """Start processing text from the user. This handles sanitation of the strings and
+        """
+        Start processing text from the user. This handles sanitation of the strings and
         any special commands that affect the conversation flow rather than the action (like aborting etc)
+
         :param text: what the user typed or said
         :type text str
         """
@@ -317,8 +326,12 @@ class ConversationEngine(object):
             self._handle_user_while_aborting(text)
 
     def _handle_special_commands(self, text):
-        """Check for special commands that should not be parsed further
-        @returns bool indicating if the text is a special command"""
+        """
+        Check for special commands that should not be parsed further
+
+        :return: indicating if the text is a special command
+        :rtype: bool
+        """
 
         stop_words = ["stop", "cancel", "quit", "reset"]
         if any([word for word in stop_words if word in text]):
@@ -604,7 +617,7 @@ class ConversationEngine(object):
         :param text: input text
         :type text: str
         :return: whether the parsing succeeded or failed
-        :returns: bool
+        :rtype: bool
         """
         sanitized = sanitize_text(text)
         words = sanitized.strip().split(" ")
