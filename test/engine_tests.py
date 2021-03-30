@@ -109,7 +109,7 @@ class ConversationEngineTests(unittest.TestCase):
 
         # Set the answer
         wce.user_to_robot_msg(location)
-        print wce.robot_to_user_messages
+        print(wce.robot_to_user_messages)
 
         # Now: the robot should be busy once again
         self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_ROBOT)

@@ -37,7 +37,7 @@ def sanitize_text(txt):
                "potato chips": "potato_chips",
                "cleaning stuff": "cleaning_stuff"}
 
-    for key, value in mapping.iteritems():
+    for key, value in mapping.items():
         lowered = lowered.replace(key, value)
 
     return lowered
