@@ -446,7 +446,7 @@ class ConversationEngine(object):
 
         rospy.loginfo("additional_semantics: {}".format(additional_semantics))
         sem_str = json.dumps(additional_semantics)
-        sem_dict = yaml.load(sem_str)
+        sem_dict = yaml.safe_load(sem_str)
         rospy.logdebug("parsed: {}".format(sem_dict))
 
         try:
