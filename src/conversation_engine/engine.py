@@ -12,13 +12,14 @@ from std_msgs.msg import String
 # TU/e Robotics
 from action_server import Client, TaskOutcome
 from grammar_parser import cfgparser
+from ner_model.parser import NERParser
 
 
 def sanitize_text(txt):
     stripped = "".join(c for c in txt if c not in """!.,:'?`~@#$%^&*()+=-/\></*-+""")
     lowered = stripped.lower()
 
-    mapping = {"dining table": "dining_table",
+    mapping = {"dining table": "dinner_table",
                "dinner table": "dinner_table",
                "display case": "display_case",
                "storage shelf": "storage_shelf",
@@ -393,12 +394,9 @@ class ConversationEngine(object):
         """
         rospy.loginfo("_handle_command('{}')".format(text))
 
-        words = text.strip().split(" ")
-
-        # The command the user gave is being parsed towards the command_target in the grammar
-        # The parse returns a task description dictionary
         try:
-            semantics = self._parser.parse_raw(self._command_target, words, debug=True)
+            ner_parser = NERParser.fromstring("")
+            semantics = ner_parser.parse(self._command_target, text)
             self._state.initialize_semantics(semantics)
             self._action_client.send_async_task(str(self._state.current_semantics),
                                                 done_cb=self._done_cb,
@@ -406,8 +404,8 @@ class ConversationEngine(object):
             rospy.loginfo("Task sent: {}".format(self._state.current_semantics))
 
             self._state.wait_for_robot()
-        except (cfgparser.GrammarError, cfgparser.ParseError) as e:
-            rospy.logerr("Parsing '{}' failed: {}".format(text, e))
+        except Exception as e:
+            rospy.logerr("NER parsing '{}' failed: {}".format(text, e))
             self._log_invalid_command(text)
 
             if 'sandwich' in text:
@@ -619,15 +617,7 @@ class ConversationEngine(object):
         :return: whether the parsing succeeded or failed
         :rtype: bool
         """
-        sanitized = sanitize_text(text)
-        words = sanitized.strip().split(" ")
-        target = self._state.target if self._state.target else self._command_target
-        try:
-            self._parser.parse_raw(target, words, debug=True)
-            return True
-        except (cfgparser.GrammarError, cfgparser.ParseError) as e:
-            rospy.logerr("Text input '{}' is not valid: {}".format(text, e))
-            return False
+        return True
 
 
 class ConversationEngineUsingTopic(ConversationEngine):
