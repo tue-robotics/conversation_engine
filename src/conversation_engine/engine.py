@@ -2,7 +2,9 @@
 import json
 import os
 import random
+import threading
 import yaml
+from collections import deque
 from copy import deepcopy
 
 # ROS
@@ -289,6 +291,13 @@ class ConversationEngine(object):
 
         self._latest_feedback = None
 
+        # Commands received while the robot is busy are queued here and executed
+        # (FIFO) once the current task reaches a terminal state. The queue is
+        # touched from both the action-client worker thread (via _done_cb) and
+        # the user-input thread, so it is guarded by a lock.
+        self._pending_commands = deque()
+        self._pending_commands_lock = threading.Lock()
+
         rospy.logdebug("Started conversation engine")
 
     def user_to_robot_text(self, text):
@@ -375,6 +384,8 @@ class ConversationEngine(object):
                 random.choice(["State machine takes a long time to abort, you can kill it with 'sudo kill'"]))
 
         self._state.aborting(rospy.Duration(20), notify_user)
+        with self._pending_commands_lock:
+            self._pending_commands.clear()
         self._action_client.cancel_all_async()
         self._latest_feedback = None
 
@@ -385,6 +396,22 @@ class ConversationEngine(object):
     def _start_new_conversation(self):
         self._state = ConversationState()
         self._latest_feedback = None
+
+        # If commands were queued while busy, run the next one immediately instead
+        # of waiting for fresh user input. Pop under the lock so a concurrent
+        # _stop()/clear() cannot turn the check-then-pop into an IndexError.
+        with self._pending_commands_lock:
+            if self._pending_commands:
+                next_text = self._pending_commands.popleft()
+                remaining = len(self._pending_commands)
+            else:
+                next_text = None
+                remaining = 0
+        if next_text is not None:
+            rospy.loginfo("Starting queued command ('{}'), {} still pending".format(next_text, remaining))
+            self._handle_user_to_robot(next_text)
+            return
+
         self._say_ready_for_command()  # This is assuming the state machine is back online when a command is received
         self._start_wait_for_command(self._grammar, self._command_target)
 
@@ -469,13 +496,20 @@ class ConversationEngine(object):
 
     def _handle_user_while_waiting_for_robot(self, text):
         """
-        Talk with the user while the robot is busy doing stuff
+        The robot is busy. Queue the command (FIFO) and let the user know it will
+        run once the current task finishes.
         """
-        sentence = random.choice(["I'm busy, give me a sec.",
-                                  "Hold on, "])
+        with self._pending_commands_lock:
+            self._pending_commands.append(text)
+            pending = len(self._pending_commands)
+        rospy.loginfo("Queued command while busy ('{}'), {} pending".format(text, pending))
+
+        sentence = random.choice(["OK, I'll do that next.",
+                                  "Got it, I'll get to that when I'm done."])
 
         if self._latest_feedback:
-            sentence += " " + describe_current_subtask(self._latest_feedback.current_subtask)
+            sentence += " Right now I'm " + describe_current_subtask(self._latest_feedback.current_subtask,
+                                                                     prefix=False)
 
         self._say_to_user(sentence)
 
@@ -508,12 +542,23 @@ class ConversationEngine(object):
 
     def _done_cb(self, task_outcome):
         """
-        The action_server's action is done, which can mean the action is finished (successfully or failed) or
-        needs additional info. This last option is handled by _on_request_missing_information and
-        the other cases by a starting a new conversation
+        The action_server's task is done, which can mean the task finished
+        (successfully or failed) or needs additional info.
+
+        The action_server.Client guarantees this callback runs on its serialized
+        worker thread, never from an actionlib transition callback and never while
+        another goal is being submitted. It is therefore safe to do blocking work
+        and to submit new tasks (via send_async_task) from here.
         """
         rospy.loginfo("_done_cb: Task done -> {to}".format(to=task_outcome))
         assert isinstance(task_outcome, TaskOutcome)
+        self._handle_task_outcome(task_outcome)
+
+    def _handle_task_outcome(self, task_outcome):
+        """
+        Handle a finished action_server goal (success, failure, or missing info).
+        """
+        rospy.loginfo("_handle_task_outcome: {to}".format(to=task_outcome))
 
         self._latest_feedback = None
 
