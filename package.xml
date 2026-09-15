@@ -27,6 +27,7 @@
   <exec_depend>message_runtime</exec_depend>
   
   <exec_depend>action_server</exec_depend>
+  <exec_depend>ner_model</exec_depend>
 
   <test_depend>python3-mock</test_depend>
 
