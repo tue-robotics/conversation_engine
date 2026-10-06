@@ -21,7 +21,7 @@ def sanitize_text(txt):
     stripped = "".join(c for c in txt if c not in """!.,:'?`~@#$%^&*()+=-/\></*-+""")
     lowered = stripped.lower()
 
-    mapping = {"dining table": "dinner_table",
+    mapping = {"dining table": "dining_table",
                "dinner table": "dinner_table",
                "display case": "display_case",
                "storage shelf": "storage_shelf",
