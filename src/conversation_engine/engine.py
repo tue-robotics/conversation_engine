@@ -281,6 +281,11 @@ class ConversationEngine(object):
         self._action_client = action_client
 
         self._parser = cfgparser.CFGParser.fromstring(grammar)
+        # Commands are parsed with the grammar, or with the NER model when the node runs with ~parser:=ner
+        self._command_parser = self._parser
+        if rospy.core.is_initialized() and rospy.get_param("~parser", "grammar") == "ner":
+            from ner_model.parser import NERParser
+            self._command_parser = NERParser()
         self._grammar = grammar
         self._command_target = command_target
 
@@ -398,7 +403,7 @@ class ConversationEngine(object):
         # The command the user gave is being parsed towards the command_target in the grammar
         # The parse returns a task description dictionary
         try:
-            semantics = self._parser.parse_raw(self._command_target, words, debug=True)
+            semantics = self._command_parser.parse_raw(self._command_target, words, debug=True)
             self._state.initialize_semantics(semantics)
             self._action_client.send_async_task(str(self._state.current_semantics),
                                                 done_cb=self._done_cb,
@@ -622,8 +627,9 @@ class ConversationEngine(object):
         sanitized = sanitize_text(text)
         words = sanitized.strip().split(" ")
         target = self._state.target if self._state.target else self._command_target
+        parser = self._parser if self._state.target else self._command_parser
         try:
-            self._parser.parse_raw(target, words, debug=True)
+            parser.parse_raw(target, words, debug=True)
             return True
         except (cfgparser.GrammarError, cfgparser.ParseError) as e:
             rospy.logerr("Text input '{}' is not valid: {}".format(text, e))
