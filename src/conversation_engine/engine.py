@@ -258,8 +258,7 @@ class ConversationEngine(object):
 
     def __init__(self, action_client, grammar, command_target, give_examples=True, command_parser=None):
         """
-        Initialize a new ConversationEngine for the given robot. Commands are parsed with the NER model, the grammar with
-        its command_target is used to parse the answers when information is missing and to give examples.
+        Initialize a new ConversationEngine for the given robot.
         Indicate whether to give examples of thins to say to the user via give_examples
 
         :param action_client: interface to the action server
