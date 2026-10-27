@@ -26,12 +26,15 @@ class FakeCommandParser(object):
 
 class WrappedConversationEngine(ConversationEngine):
     """
-    Wraps the conversation engine and implements the '_say_to_user' method
+    Wraps the conversation engine and implements the '_say_to_user' method. The NER model, which needs torch and its
+    downloaded weights, is replaced by command_parser.
     """
-    def __init__(self, grammar, target, **kwargs):
+    def __init__(self, grammar, target, command_parser):
         self.client = mock.Mock()
         self.client.send_async_task = mock.MagicMock()
-        super(WrappedConversationEngine, self).__init__(self.client, grammar, target, **kwargs)
+        ner_model_parser = mock.Mock(NERParser=mock.Mock(return_value=command_parser))
+        with mock.patch.dict(sys.modules, {'ner_model': mock.Mock(), 'ner_model.parser': ner_model_parser}):
+            super(WrappedConversationEngine, self).__init__(self.client, grammar, target)
         self.robot_to_user_messages = []
 
     def user_to_robot_msg(self, msg):
@@ -44,9 +47,7 @@ class WrappedConversationEngine(ConversationEngine):
 class ConversationEngineTests(unittest.TestCase):
     def test_commands_are_parsed_with_the_ner_model(self):
         semantics = {'actions': [{'action': 'navigate-to', 'target-location': {'id': 'kitchen'}}]}
-        ner_model_parser = mock.Mock(NERParser=mock.Mock(return_value=FakeCommandParser(semantics)))
-        with mock.patch.dict(sys.modules, {'ner_model': mock.Mock(), 'ner_model.parser': ner_model_parser}):
-            wce = WrappedConversationEngine("T -> yes | no", "T")
+        wce = WrappedConversationEngine("T -> yes | no", "T", FakeCommandParser(semantics))
         wce.user_to_robot_msg("go to the kitchen")  # Not in the grammar
         self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_ROBOT)  # State should have changed
         wce.client.send_async_task.assert_called()  # Check if the action has been sent to the robot
@@ -55,8 +56,7 @@ class ConversationEngineTests(unittest.TestCase):
     def test_invalid_answer_to_request_for_missing_information(self):
         semantics = {'actions': [{'action': 'hand-over', 'object': {'type': 'drink'},
                                   'target-location': {'type': 'person', 'id': 'operator'}}]}
-        wce = WrappedConversationEngine("ROOM_OR_LOCATION -> fridge", "T",
-                                        command_parser=FakeCommandParser(semantics))
+        wce = WrappedConversationEngine("ROOM_OR_LOCATION -> fridge", "T", FakeCommandParser(semantics))
         wce.user_to_robot_msg("bring me a drink")
         outcome = TaskOutcome(TaskOutcome.RESULT_MISSING_INFORMATION, ["Where is the drink?"], "action[0].location")
         wce._done_cb(outcome)
@@ -77,7 +77,7 @@ class ConversationEngineTests(unittest.TestCase):
             "V_SAY -> tell | say",
             "SAY_SENTENCE['time'] -> the time"]
         grammar = "\n".join(grammar)
-        wce = WrappedConversationEngine(grammar, target, command_parser=CFGParser.fromstring(grammar))
+        wce = WrappedConversationEngine(grammar, target, CFGParser.fromstring(grammar))
         wce.user_to_robot_msg(sentence)
         self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_ROBOT)  # State should have changed
         wce.client.send_async_task.assert_called()  # Check if the action has been sent to the robot
@@ -117,7 +117,7 @@ class ConversationEngineTests(unittest.TestCase):
         grammar += "ROOM_OR_LOCATION[X] -> LOCATION[X]\n"
         grammar += "LOCATION[{'id': 'fridge'}] -> fridge\n"
         # grammar = "{} -> {}\nROOM_OR_LOCATION -> {}".format(target, sentence, location)
-        wce = WrappedConversationEngine(grammar, target, command_parser=CFGParser.fromstring(grammar))
+        wce = WrappedConversationEngine(grammar, target, CFGParser.fromstring(grammar))
         wce.user_to_robot_msg(sentence)
         self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_ROBOT)  # State should have changed
         wce.client.send_async_task.assert_called()  # Check if the action has been sent to the robot

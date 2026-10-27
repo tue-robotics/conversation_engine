@@ -256,7 +256,7 @@ class ConversationEngine(object):
     - user_to_robot_text to accept text from the user
     """
 
-    def __init__(self, action_client, grammar, command_target, give_examples=True, command_parser=None):
+    def __init__(self, action_client, grammar, command_target, give_examples=True):
         """
         Initialize a new ConversationEngine for the given robot.
         Indicate whether to give examples of thins to say to the user via give_examples
@@ -274,8 +274,6 @@ class ConversationEngine(object):
         :param give_examples: Include examples when talking with the user.
             These are randomly generated from the active part of the grammar
         :type give_examples: bool
-        :param command_parser: parser for the commands, the NER model (ner_model's NERParser) when not given.
-            Like CFGParser, its parse_raw must return an action description dictionary.
         """
 
         self._state = ConversationState()
@@ -283,10 +281,8 @@ class ConversationEngine(object):
         self._action_client = action_client
 
         self._parser = cfgparser.CFGParser.fromstring(grammar)
-        if command_parser is None:
-            from ner_model.parser import NERParser
-            command_parser = NERParser()
-        self._command_parser = command_parser
+        from ner_model.parser import NERParser
+        self._command_parser = NERParser()
         self._grammar = grammar
         self._command_target = command_target
 
