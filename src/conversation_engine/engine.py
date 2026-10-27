@@ -258,7 +258,7 @@ class ConversationEngine(object):
 
     def __init__(self, action_client, grammar, command_target, give_examples=True):
         """
-        Initialize a new ConversationEngine for the given robot, using some grammar with a command_target.
+        Initialize a new ConversationEngine for the given robot.
         Indicate whether to give examples of thins to say to the user via give_examples
 
         :param action_client: interface to the action server
@@ -281,6 +281,8 @@ class ConversationEngine(object):
         self._action_client = action_client
 
         self._parser = cfgparser.CFGParser.fromstring(grammar)
+        from ner_model.parser import NERParser
+        self._command_parser = NERParser()
         self._grammar = grammar
         self._command_target = command_target
 
@@ -395,10 +397,10 @@ class ConversationEngine(object):
 
         words = text.strip().split(" ")
 
-        # The command the user gave is being parsed towards the command_target in the grammar
+        # The command the user gave is parsed by the command parser, the NER model by default
         # The parse returns a task description dictionary
         try:
-            semantics = self._parser.parse_raw(self._command_target, words, debug=True)
+            semantics = self._command_parser.parse_raw(self._command_target, words, debug=True)
             self._state.initialize_semantics(semantics)
             self._action_client.send_async_task(str(self._state.current_semantics),
                                                 done_cb=self._done_cb,
@@ -622,8 +624,9 @@ class ConversationEngine(object):
         sanitized = sanitize_text(text)
         words = sanitized.strip().split(" ")
         target = self._state.target if self._state.target else self._command_target
+        parser = self._parser if self._state.target else self._command_parser
         try:
-            self._parser.parse_raw(target, words, debug=True)
+            parser.parse_raw(target, words, debug=True)
             return True
         except (cfgparser.GrammarError, cfgparser.ParseError) as e:
             rospy.logerr("Text input '{}' is not valid: {}".format(text, e))
