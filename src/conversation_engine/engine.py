@@ -284,7 +284,6 @@ class ConversationEngine(object):
 
         self._parser = cfgparser.CFGParser.fromstring(grammar)
         if command_parser is None:
-            # Imported here, so importing conversation_engine doesn't load torch and the NER model
             from ner_model.parser import NERParser
             command_parser = NERParser()
         self._command_parser = command_parser
