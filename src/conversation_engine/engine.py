@@ -256,9 +256,10 @@ class ConversationEngine(object):
     - user_to_robot_text to accept text from the user
     """
 
-    def __init__(self, action_client, grammar, command_target, give_examples=True):
+    def __init__(self, action_client, grammar, command_target, give_examples=True, command_parser=None):
         """
-        Initialize a new ConversationEngine for the given robot, using some grammar with a command_target.
+        Initialize a new ConversationEngine for the given robot. Commands are parsed with the NER model, the grammar with
+        its command_target is used to parse the answers when information is missing and to give examples.
         Indicate whether to give examples of thins to say to the user via give_examples
 
         :param action_client: interface to the action server
@@ -274,6 +275,8 @@ class ConversationEngine(object):
         :param give_examples: Include examples when talking with the user.
             These are randomly generated from the active part of the grammar
         :type give_examples: bool
+        :param command_parser: parser for the commands, the NER model (ner_model's NERParser) when not given.
+            Like CFGParser, its parse_raw must return an action description dictionary.
         """
 
         self._state = ConversationState()
@@ -281,11 +284,11 @@ class ConversationEngine(object):
         self._action_client = action_client
 
         self._parser = cfgparser.CFGParser.fromstring(grammar)
-        # Commands are parsed with the grammar, or with the NER model when the node runs with ~parser:=ner
-        self._command_parser = self._parser
-        if rospy.core.is_initialized() and rospy.get_param("~parser", "grammar") == "ner":
+        if command_parser is None:
+            # Imported here, so importing conversation_engine doesn't load torch and the NER model
             from ner_model.parser import NERParser
-            self._command_parser = NERParser()
+            command_parser = NERParser()
+        self._command_parser = command_parser
         self._grammar = grammar
         self._command_target = command_target
 
@@ -400,7 +403,7 @@ class ConversationEngine(object):
 
         words = text.strip().split(" ")
 
-        # The command the user gave is being parsed towards the command_target in the grammar
+        # The command the user gave is parsed by the command parser, the NER model by default
         # The parse returns a task description dictionary
         try:
             semantics = self._command_parser.parse_raw(self._command_target, words, debug=True)

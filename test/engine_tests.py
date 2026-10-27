@@ -1,23 +1,37 @@
 # System
 import mock
 print(mock.__version__)
+import sys
 import unittest
 
 # TU/e Robotics
 from action_server import TaskOutcome
+from grammar_parser.cfgparser import CFGParser
 
 # Conversation engine
 from conversation_engine import ConversationEngine, ConversationState
+
+
+class FakeCommandParser(object):
+    """
+    Stands in for the NER model, which needs torch and its downloaded weights. Parses every command into the same
+    semantics.
+    """
+    def __init__(self, semantics):
+        self._semantics = semantics
+
+    def parse_raw(self, target, words, debug=False):
+        return self._semantics
 
 
 class WrappedConversationEngine(ConversationEngine):
     """
     Wraps the conversation engine and implements the '_say_to_user' method
     """
-    def __init__(self, grammar, target):
+    def __init__(self, grammar, target, **kwargs):
         self.client = mock.Mock()
         self.client.send_async_task = mock.MagicMock()
-        super(WrappedConversationEngine, self).__init__(self.client, grammar, target)
+        super(WrappedConversationEngine, self).__init__(self.client, grammar, target, **kwargs)
         self.robot_to_user_messages = []
 
     def user_to_robot_msg(self, msg):
@@ -28,13 +42,30 @@ class WrappedConversationEngine(ConversationEngine):
 
 
 class ConversationEngineTests(unittest.TestCase):
-    def test_invalid_input(self):
-        grammar = "T -> yes | no"
-        target = "T"
-        wce = WrappedConversationEngine(grammar, target)
-        wce.user_to_robot_msg("foo")
-        self.assertTrue(len(wce.robot_to_user_messages) > 0)  # Robot has responed
-        self.assertEqual(wce._state._state, ConversationState.IDLE)  # Robot should still be idling
+    def test_commands_are_parsed_with_the_ner_model(self):
+        semantics = {'actions': [{'action': 'navigate-to', 'target-location': {'id': 'kitchen'}}]}
+        ner_model_parser = mock.Mock(NERParser=mock.Mock(return_value=FakeCommandParser(semantics)))
+        with mock.patch.dict(sys.modules, {'ner_model': mock.Mock(), 'ner_model.parser': ner_model_parser}):
+            wce = WrappedConversationEngine("T -> yes | no", "T")
+        wce.user_to_robot_msg("go to the kitchen")  # Not in the grammar
+        self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_ROBOT)  # State should have changed
+        wce.client.send_async_task.assert_called()  # Check if the action has been sent to the robot
+        self.assertEqual(wce.client.send_async_task.call_args[0][0], str(semantics))
+
+    def test_invalid_answer_to_request_for_missing_information(self):
+        semantics = {'actions': [{'action': 'hand-over', 'object': {'type': 'drink'},
+                                  'target-location': {'type': 'person', 'id': 'operator'}}]}
+        wce = WrappedConversationEngine("ROOM_OR_LOCATION -> fridge", "T",
+                                        command_parser=FakeCommandParser(semantics))
+        wce.user_to_robot_msg("bring me a drink")
+        outcome = TaskOutcome(TaskOutcome.RESULT_MISSING_INFORMATION, ["Where is the drink?"], "action[0].location")
+        wce._done_cb(outcome)
+        wce.robot_to_user_messages = []
+
+        wce.user_to_robot_msg("foo")  # Answers are still parsed with the grammar
+        self.assertTrue(len(wce.robot_to_user_messages) > 0)  # Robot has responded
+        self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_USER)  # Robot still waits for the answer
+        self.assertEqual(wce._state.target, "ROOM_OR_LOCATION")
 
     def test_simple_assignment(self):
         sentence = "tell the time"
@@ -46,7 +77,7 @@ class ConversationEngineTests(unittest.TestCase):
             "V_SAY -> tell | say",
             "SAY_SENTENCE['time'] -> the time"]
         grammar = "\n".join(grammar)
-        wce = WrappedConversationEngine(grammar, target)
+        wce = WrappedConversationEngine(grammar, target, command_parser=CFGParser.fromstring(grammar))
         wce.user_to_robot_msg(sentence)
         self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_ROBOT)  # State should have changed
         wce.client.send_async_task.assert_called()  # Check if the action has been sent to the robot
@@ -86,7 +117,7 @@ class ConversationEngineTests(unittest.TestCase):
         grammar += "ROOM_OR_LOCATION[X] -> LOCATION[X]\n"
         grammar += "LOCATION[{'id': 'fridge'}] -> fridge\n"
         # grammar = "{} -> {}\nROOM_OR_LOCATION -> {}".format(target, sentence, location)
-        wce = WrappedConversationEngine(grammar, target)
+        wce = WrappedConversationEngine(grammar, target, command_parser=CFGParser.fromstring(grammar))
         wce.user_to_robot_msg(sentence)
         self.assertEqual(wce._state._state, ConversationState.WAIT_FOR_ROBOT)  # State should have changed
         wce.client.send_async_task.assert_called()  # Check if the action has been sent to the robot
